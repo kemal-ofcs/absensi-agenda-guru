@@ -978,13 +978,6 @@
 	  scanLocked = true;
 
 	  clearMessage(el.scannerMessage);
-	  
-	  const sesiMasihValid = await validateSessionBeforeScan();
-
-		if (!sesiMasihValid) {
-		  scanLocked = false;
-		  return;
-		}
 
 	  const parsed = renderQrPreviewSafe(decodedText);
 
@@ -1008,6 +1001,7 @@
 		clearSession();
 		showLoginPage();
 		showMessage(el.loginMessage, "warning", "Sesi habis. Silakan login ulang.");
+		scanLocked = false;
 		return;
 	  }
 
@@ -1022,6 +1016,31 @@
 		  sumberScanner: CONFIG.SUMBER,
 		  versiScanner: CONFIG.VERSI_SCANNER
 		});
+
+		const sesiTidakValid =
+		  result &&
+		  result.sukses === false &&
+		  (
+			result.kode === "SESI_TIDAK_VALID" ||
+			result.kode === "TOKEN_SESI_TIDAK_VALID" ||
+			result.kode === "SESSION_TIDAK_VALID" ||
+			result.pesan === "Sesi scanner tidak valid atau telah berakhir."
+		  );
+
+		if (sesiTidakValid) {
+		  clearSession();
+		  await stopCamera();
+		  showLoginPage();
+
+		  showMessage(
+			el.loginMessage,
+			"warning",
+			"Sesi scanner tidak valid atau telah berakhir. Silakan login ulang."
+		  );
+
+		  scanLocked = false;
+		  return;
+		}
 
 		renderScanResult(result);
 
