@@ -373,6 +373,29 @@
       <button type="button" class="btn-secondary" id="stopCameraButton" disabled>Stop Kamera</button>
 
       <div class="message" id="scannerMessage"></div>
+	  
+	  <div class="scan-result" id="qrPreviewBox">
+		  <div class="scan-result-header">
+			QR Terbaca
+		  </div>
+
+		  <div class="scan-result-body">
+			<div class="info-row">
+			  <span class="info-label">Format QR</span>
+			  <span class="info-value" id="previewFormatQr">-</span>
+			</div>
+
+			<div class="info-row">
+			  <span class="info-label">ID Pegawai</span>
+			  <span class="info-value" id="previewIdPegawai">-</span>
+			</div>
+
+			<div class="info-row">
+			  <span class="info-label">Token QR</span>
+			  <span class="info-value" id="previewTokenQr">-</span>
+			</div>
+		  </div>
+		</div>
 
       <div class="scan-result" id="scanResult">
         <div class="scan-result-header" id="scanResultHeader">
@@ -455,6 +478,11 @@
       cameraNote: document.getElementById("cameraNote"),
       startCameraButton: document.getElementById("startCameraButton"),
       stopCameraButton: document.getElementById("stopCameraButton"),
+	  
+	  qrPreviewBox: document.getElementById("qrPreviewBox"),
+		previewFormatQr: document.getElementById("previewFormatQr"),
+		previewIdPegawai: document.getElementById("previewIdPegawai"),
+		previewTokenQr: document.getElementById("previewTokenQr"),
 
       scanResult: document.getElementById("scanResult"),
       scanResultHeader: document.getElementById("scanResultHeader"),
@@ -752,6 +780,69 @@
 
       return "REQ-" + waktu + "-" + acak;
     }
+	
+	function parseQrPayloadSafe(payloadQr) {
+		  if (!payloadQr || typeof payloadQr !== "string") {
+			return {
+			  valid: false,
+			  idPegawai: "-",
+			  tokenMasked: "-",
+			  pesan: "Payload QR kosong atau tidak valid."
+			};
+		  }
+
+		  const parts = payloadQr.split("|");
+
+		  if (parts.length !== 2) {
+			return {
+			  valid: false,
+			  idPegawai: "-",
+			  tokenMasked: "-",
+			  pesan: "Format QR tidak sesuai. Format wajib: ID_Pegawai|Token."
+			};
+		  }
+
+		  const idPegawai = parts[0].trim();
+		  const token = parts[1].trim();
+
+		  if (!idPegawai || !token) {
+			return {
+			  valid: false,
+			  idPegawai: idPegawai || "-",
+			  tokenMasked: "-",
+			  pesan: "ID Pegawai atau token QR kosong."
+			};
+		  }
+
+		  return {
+			valid: true,
+			idPegawai: idPegawai,
+			tokenMasked: maskToken(token),
+			pesan: "Format QR terbaca."
+		  };
+		}
+
+		function maskToken(token) {
+		  if (!token || token.length < 6) {
+			return "***";
+		  }
+
+		  const depan = token.substring(0, 2);
+		  const belakang = token.substring(token.length - 2);
+
+		  return depan + "***" + belakang;
+		}
+
+		function renderQrPreviewSafe(payloadQr) {
+		  const parsed = parseQrPayloadSafe(payloadQr);
+
+		  el.qrPreviewBox.className = "scan-result show scan-warning";
+		  el.previewFormatQr.textContent = parsed.valid ? "Valid" : "Tidak Valid";
+		  el.previewIdPegawai.textContent = parsed.idPegawai;
+		  el.previewTokenQr.textContent = parsed.tokenMasked;
+
+		  return parsed;
+		}
 
     async function startCamera() {
       clearMessage(el.scannerMessage);
@@ -843,49 +934,64 @@
     }
 
     async function handleQrDetected(decodedText) {
-      if (scanLocked) {
-        return;
-      }
+	  if (scanLocked) {
+		return;
+	  }
 
-      scanLocked = true;
+	  scanLocked = true;
 
-      clearMessage(el.scannerMessage);
-      showMessage(el.scannerMessage, "warning", "QR terbaca. Mengirim data scan...");
+	  clearMessage(el.scannerMessage);
 
-      const tokenSesi = getTokenSesi();
+	  const parsed = renderQrPreviewSafe(decodedText);
 
-      if (!tokenSesi) {
-        clearSession();
-        showLoginPage();
-        showMessage(el.loginMessage, "warning", "Sesi habis. Silakan login ulang.");
-        return;
-      }
+	  if (!parsed.valid) {
+		renderScanResult({
+		  sukses: false,
+		  status: "Ditolak",
+		  kode: "FORMAT_QR_FRONTEND_TIDAK_VALID",
+		  pesan: parsed.pesan
+		});
 
-      const requestId = generateRequestId();
+		startFrontendCooldown();
+		return;
+	  }
 
-      try {
-        const result = await postJsonTextPlain({
-          action: "scan",
-          tokenSesi: tokenSesi,
-          payloadQr: decodedText,
-          requestId: requestId,
-          sumberScanner: CONFIG.SUMBER,
-          versiScanner: CONFIG.VERSI_SCANNER
-        });
+	  showMessage(el.scannerMessage, "warning", "QR terbaca. Mengirim data scan...");
 
-        renderScanResult(result);
+	  const tokenSesi = getTokenSesi();
 
-      } catch (error) {
-        renderScanResult({
-          sukses: false,
-          status: "Ditolak",
-          kode: "KONEKSI_GAGAL",
-          pesan: "Scan gagal dikirim. Periksa koneksi internet."
-        });
-      } finally {
-        startFrontendCooldown();
-      }
-    }
+	  if (!tokenSesi) {
+		clearSession();
+		showLoginPage();
+		showMessage(el.loginMessage, "warning", "Sesi habis. Silakan login ulang.");
+		return;
+	  }
+
+	  const requestId = generateRequestId();
+
+	  try {
+		const result = await postJsonTextPlain({
+		  action: "scan",
+		  tokenSesi: tokenSesi,
+		  payloadQr: decodedText,
+		  requestId: requestId,
+		  sumberScanner: CONFIG.SUMBER,
+		  versiScanner: CONFIG.VERSI_SCANNER
+		});
+
+		renderScanResult(result);
+
+	  } catch (error) {
+		renderScanResult({
+		  sukses: false,
+		  status: "Ditolak",
+		  kode: "KONEKSI_GAGAL",
+		  pesan: "Scan gagal dikirim. Periksa koneksi internet."
+		});
+	  } finally {
+		startFrontendCooldown();
+	  }
+	}
 
     function startFrontendCooldown() {
       let sisaDetik = Math.ceil(CONFIG.FRONTEND_COOLDOWN_MS / 1000);
