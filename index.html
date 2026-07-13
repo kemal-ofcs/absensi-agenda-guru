@@ -155,10 +155,13 @@
       background: var(--primary-dark);
     }
 
-    button:disabled {
-      opacity: 0.65;
-      cursor: not-allowed;
-    }
+    button:disabled,
+	button:disabled:hover {
+	  background: #9ca3af;
+	  color: #ffffff;
+	  opacity: 0.75;
+	  cursor: not-allowed;
+	}
 
     .btn-danger {
       background: var(--danger);
@@ -792,8 +795,9 @@
 
         cameraActive = true;
         el.startCameraButton.disabled = true;
-        el.stopCameraButton.disabled = false;
-        el.cameraNote.innerHTML = "Kamera aktif. Arahkan kamera ke QR pegawai.";
+		el.startCameraButton.textContent = "Kamera Aktif";
+		el.stopCameraButton.disabled = false;
+		el.cameraNote.innerHTML = "Kamera aktif. Arahkan kamera ke QR pegawai.";
 
         showMessage(el.scannerMessage, "success", "Kamera berhasil aktif.");
 
@@ -813,12 +817,13 @@
     async function stopCamera() {
       clearCooldown();
 
-      if (!qrScanner || !cameraActive) {
-        cameraActive = false;
-        el.startCameraButton.disabled = false;
-        el.stopCameraButton.disabled = true;
-        return;
-      }
+		if (!qrScanner || !cameraActive) {
+		  cameraActive = false;
+		  el.startCameraButton.disabled = false;
+		  el.startCameraButton.textContent = "Mulai Kamera";
+		  el.stopCameraButton.disabled = true;
+		  return;
+		}
 
       try {
         await qrScanner.stop();
@@ -831,8 +836,9 @@
         scanLocked = false;
 
         el.startCameraButton.disabled = false;
-        el.stopCameraButton.disabled = true;
-        el.cameraNote.innerHTML = "Kamera belum aktif. Tekan tombol <b>Mulai Kamera</b>, lalu izinkan akses kamera dari browser.";
+		el.startCameraButton.textContent = "Mulai Kamera";
+		el.stopCameraButton.disabled = true;
+		el.cameraNote.innerHTML = "Kamera belum aktif. Tekan tombol <b>Mulai Kamera</b>, lalu izinkan akses kamera dari browser.";
       }
     }
 
