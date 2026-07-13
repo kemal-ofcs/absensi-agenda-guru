@@ -735,6 +735,43 @@
         showMessage(el.loginMessage, "warning", "Sesi belum bisa divalidasi. Silakan login ulang.");
       }
     }
+	
+	async function validateSessionBeforeScan() {
+	  const tokenSesi = getTokenSesi();
+
+	  if (!tokenSesi) {
+		clearSession();
+		showLoginPage();
+		showMessage(el.loginMessage, "warning", "Sesi tidak ditemukan. Silakan login ulang.");
+		return false;
+	  }
+
+	  try {
+		const result = await postJsonTextPlain({
+		  action: "validate_session",
+		  tokenSesi: tokenSesi
+		});
+
+		if (!result || result.sukses !== true || result.kode !== "SESI_VALID") {
+		  clearSession();
+		  await stopCamera();
+		  showLoginPage();
+		  showMessage(el.loginMessage, "warning", "Sesi scanner tidak valid atau telah berakhir. Silakan login ulang.");
+		  return false;
+		}
+
+		return true;
+
+	  } catch (error) {
+		showMessage(
+		  el.scannerMessage,
+		  "error",
+		  "Sesi belum bisa divalidasi. Periksa koneksi internet lalu coba lagi."
+		);
+
+		return false;
+	  }
+	}
 
     async function handleLogout() {
       clearMessage(el.scannerMessage);
@@ -941,6 +978,13 @@
 	  scanLocked = true;
 
 	  clearMessage(el.scannerMessage);
+	  
+	  const sesiMasihValid = await validateSessionBeforeScan();
+
+		if (!sesiMasihValid) {
+		  scanLocked = false;
+		  return;
+		}
 
 	  const parsed = renderQrPreviewSafe(decodedText);
 
