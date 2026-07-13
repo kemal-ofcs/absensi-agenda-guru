@@ -6,6 +6,8 @@
 
   <title>Scanner Absensi Guru</title>
 
+  <script src="https://unpkg.com/html5-qrcode"></script>
+
   <style>
     :root {
       --bg: #f4f6f8;
@@ -34,7 +36,7 @@
 
     .app {
       width: 100%;
-      max-width: 480px;
+      max-width: 520px;
       margin: 0 auto;
       padding: 20px;
     }
@@ -146,6 +148,7 @@
       cursor: pointer;
       background: var(--primary);
       color: white;
+      margin-top: 10px;
     }
 
     button:hover {
@@ -165,12 +168,21 @@
       background: #b91c1c;
     }
 
+    .btn-secondary {
+      background: #4b5563;
+    }
+
+    .btn-secondary:hover {
+      background: #374151;
+    }
+
     .message {
       margin-top: 12px;
       padding: 12px;
       border-radius: 10px;
       font-size: 14px;
       display: none;
+      line-height: 1.5;
     }
 
     .message.show {
@@ -206,13 +218,64 @@
       margin-top: 20px;
     }
 
-    .scanner-placeholder {
-      padding: 18px;
-      border: 2px dashed var(--border);
+    #qrReader {
+      width: 100%;
+      overflow: hidden;
       border-radius: 12px;
-      text-align: center;
+      border: 1px solid var(--border);
+      background: #f9fafb;
+      margin-top: 12px;
+    }
+
+    .camera-note {
+      padding: 12px;
+      border: 1px dashed var(--border);
+      border-radius: 12px;
       color: var(--muted);
       font-size: 14px;
+      line-height: 1.5;
+      text-align: center;
+      margin-top: 12px;
+    }
+
+    .scan-result {
+      margin-top: 14px;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+      display: none;
+    }
+
+    .scan-result.show {
+      display: block;
+    }
+
+    .scan-result-header {
+      padding: 12px;
+      font-weight: bold;
+      color: white;
+    }
+
+    .scan-success .scan-result-header {
+      background: var(--success);
+    }
+
+    .scan-warning .scan-result-header {
+      background: var(--warning);
+    }
+
+    .scan-error .scan-result-header {
+      background: var(--danger);
+    }
+
+    .scan-result-body {
+      padding: 12px;
+      background: white;
+    }
+
+    .small-text {
+      color: var(--muted);
+      font-size: 12px;
       line-height: 1.5;
     }
   </style>
@@ -297,14 +360,55 @@
         <span class="info-value" id="petugasAkses">-</span>
       </div>
 
-      <div class="scanner-placeholder">
-        Login dan validasi sesi sudah aktif.<br />
-        Kamera QR Scanner akan ditambahkan pada Tahap 4 setelah tahap ini lulus uji.
+      <div class="camera-note" id="cameraNote">
+        Kamera belum aktif. Tekan tombol <b>Mulai Kamera</b>, lalu izinkan akses kamera dari browser.
       </div>
+
+      <div id="qrReader"></div>
+
+      <button type="button" id="startCameraButton">Mulai Kamera</button>
+      <button type="button" class="btn-secondary" id="stopCameraButton" disabled>Stop Kamera</button>
 
       <div class="message" id="scannerMessage"></div>
 
-      <button type="button" class="btn-danger" id="logoutButton" style="margin-top: 14px;">
+      <div class="scan-result" id="scanResult">
+        <div class="scan-result-header" id="scanResultHeader">
+          Hasil Scan
+        </div>
+
+        <div class="scan-result-body">
+          <div class="info-row">
+            <span class="info-label">Kode</span>
+            <span class="info-value" id="hasilKode">-</span>
+          </div>
+
+          <div class="info-row">
+            <span class="info-label">Pesan</span>
+            <span class="info-value" id="hasilPesan">-</span>
+          </div>
+
+          <div class="info-row">
+            <span class="info-label">Pegawai</span>
+            <span class="info-value" id="hasilPegawai">-</span>
+          </div>
+
+          <div class="info-row">
+            <span class="info-label">Jenis Scan</span>
+            <span class="info-value" id="hasilJenisScan">-</span>
+          </div>
+
+          <div class="info-row">
+            <span class="info-label">ID Absensi</span>
+            <span class="info-value" id="hasilAbsensi">-</span>
+          </div>
+        </div>
+      </div>
+
+      <p class="small-text">
+        Catatan: payload QR dan token sesi tidak ditampilkan untuk menjaga keamanan.
+      </p>
+
+      <button type="button" class="btn-danger" id="logoutButton">
         Logout
       </button>
     </section>
@@ -315,30 +419,14 @@
   </div>
 
   <script>
-    /*
-      ============================================================
-      KONFIGURASI DASAR
-      ============================================================
-
-      Catatan:
-      - Backend Apps Script sudah lulus.
-      - Frontend hanya memanggil endpoint yang sudah tersedia.
-      - Jangan console.log token, password, payload QR, atau body request lengkap.
-    */
-
     const CONFIG = {
       WEB_APP_URL: "https://script.google.com/macros/s/AKfycbwh-Wn51p34t1dOq0atzHhPFBKAykCoTg9o8zD8r6Mjv601eNnYS_03276256za4RM/exec",
       SUMBER: "External Web Scanner",
       VERSI_SCANNER: "1.0.0",
       STORAGE_TOKEN_KEY: "scanner_token_sesi",
-      STORAGE_USER_KEY: "scanner_user_info"
+      STORAGE_USER_KEY: "scanner_user_info",
+      FRONTEND_COOLDOWN_MS: 5000
     };
-
-    /*
-      ============================================================
-      ELEMENT UI
-      ============================================================
-    */
 
     const el = {
       statusNamaSistem: document.getElementById("statusNamaSistem"),
@@ -359,14 +447,25 @@
       petugasNama: document.getElementById("petugasNama"),
       petugasAkses: document.getElementById("petugasAkses"),
       scannerMessage: document.getElementById("scannerMessage"),
-      logoutButton: document.getElementById("logoutButton")
+      logoutButton: document.getElementById("logoutButton"),
+
+      cameraNote: document.getElementById("cameraNote"),
+      startCameraButton: document.getElementById("startCameraButton"),
+      stopCameraButton: document.getElementById("stopCameraButton"),
+
+      scanResult: document.getElementById("scanResult"),
+      scanResultHeader: document.getElementById("scanResultHeader"),
+      hasilKode: document.getElementById("hasilKode"),
+      hasilPesan: document.getElementById("hasilPesan"),
+      hasilPegawai: document.getElementById("hasilPegawai"),
+      hasilJenisScan: document.getElementById("hasilJenisScan"),
+      hasilAbsensi: document.getElementById("hasilAbsensi")
     };
 
-    /*
-      ============================================================
-      HELPER PESAN UI
-      ============================================================
-    */
+    let qrScanner = null;
+    let cameraActive = false;
+    let scanLocked = false;
+    let cooldownTimer = null;
 
     function showMessage(target, type, text) {
       target.className = "message show";
@@ -387,17 +486,6 @@
       target.textContent = "";
     }
 
-    /*
-      ============================================================
-      HELPER STORAGE
-      ============================================================
-
-      Kita pakai sessionStorage:
-      - token hilang saat tab/browser ditutup;
-      - lebih aman untuk perangkat operator;
-      - password tidak pernah disimpan.
-    */
-
     function saveSession(tokenSesi, userInfo) {
       sessionStorage.setItem(CONFIG.STORAGE_TOKEN_KEY, tokenSesi);
       sessionStorage.setItem(CONFIG.STORAGE_USER_KEY, JSON.stringify(userInfo));
@@ -407,35 +495,10 @@
       return sessionStorage.getItem(CONFIG.STORAGE_TOKEN_KEY);
     }
 
-    function getUserInfo() {
-      const raw = sessionStorage.getItem(CONFIG.STORAGE_USER_KEY);
-
-      if (!raw) {
-        return null;
-      }
-
-      try {
-        return JSON.parse(raw);
-      } catch (error) {
-        return null;
-      }
-    }
-
     function clearSession() {
       sessionStorage.removeItem(CONFIG.STORAGE_TOKEN_KEY);
       sessionStorage.removeItem(CONFIG.STORAGE_USER_KEY);
     }
-
-    /*
-      ============================================================
-      HELPER REQUEST
-      ============================================================
-
-      Penting:
-      - POST memakai Content-Type: text/plain.
-      - Ini mengikuti kontrak backend yang sudah lulus.
-      - Jangan log body request lengkap karena bisa berisi token/password.
-    */
 
     async function postJsonTextPlain(payload) {
       const response = await fetch(CONFIG.WEB_APP_URL, {
@@ -458,15 +521,6 @@
       return await response.json();
     }
 
-    /*
-      ============================================================
-      HELPER INFORMASI PERANGKAT
-      ============================================================
-
-      Ini hanya informasi umum untuk backend.
-      Jangan berisi data rahasia.
-    */
-
     function getInformasiPerangkat() {
       return [
         "UserAgent: " + navigator.userAgent,
@@ -475,11 +529,13 @@
       ].join(" | ");
     }
 
-    /*
-      ============================================================
-      RENDER STATUS SISTEM
-      ============================================================
-    */
+    function formatJam(value) {
+      if (!value || typeof value !== "string") {
+        return "-";
+      }
+
+      return value.substring(0, 5);
+    }
 
     async function loadStatusSistem() {
       clearMessage(el.statusMessage);
@@ -490,13 +546,7 @@
         if (!result || result.sukses !== true) {
           el.statusNamaSistem.textContent = "-";
           el.statusScanner.innerHTML = '<span class="badge badge-danger">Gagal</span>';
-
-          showMessage(
-            el.statusMessage,
-            "error",
-            "Status sistem gagal dimuat."
-          );
-
+          showMessage(el.statusMessage, "error", "Status sistem gagal dimuat.");
           return;
         }
 
@@ -522,33 +572,13 @@
       } catch (error) {
         el.statusNamaSistem.textContent = "-";
         el.statusScanner.innerHTML = '<span class="badge badge-danger">Error</span>';
-
-        showMessage(
-          el.statusMessage,
-          "error",
-          "Tidak bisa terhubung ke status sistem."
-        );
+        showMessage(el.statusMessage, "error", "Tidak bisa terhubung ke status sistem.");
       }
     }
-
-    function formatJam(value) {
-      if (!value || typeof value !== "string") {
-        return "-";
-      }
-
-      return value.substring(0, 5);
-    }
-
-    /*
-      ============================================================
-      RENDER HALAMAN
-      ============================================================
-    */
 
     function showLoginPage() {
       el.loginPage.classList.remove("hidden");
       el.scannerPage.classList.add("hidden");
-
       el.password.value = "";
     }
 
@@ -573,12 +603,6 @@
       el.petugasNama.textContent = namaPetugas;
       el.petugasAkses.textContent = peranAkses;
     }
-
-    /*
-      ============================================================
-      LOGIN
-      ============================================================
-    */
 
     async function handleLogin(event) {
       event.preventDefault();
@@ -614,7 +638,6 @@
             "error",
             result?.pesan || "Login gagal. Periksa username dan password."
           );
-
           return;
         }
 
@@ -622,12 +645,7 @@
         const tokenSesi = data.tokenSesi;
 
         if (!tokenSesi) {
-          showMessage(
-            el.loginMessage,
-            "error",
-            "Login berhasil, tetapi token sesi tidak diterima."
-          );
-
+          showMessage(el.loginMessage, "error", "Login berhasil, tetapi token sesi tidak diterima.");
           return;
         }
 
@@ -638,36 +656,16 @@
         };
 
         saveSession(tokenSesi, userInfo);
-
-        if (userInfo.wajibGantiPassword) {
-          showMessage(
-            el.scannerMessage,
-            "warning",
-            "Akun ini ditandai wajib ganti password. Fitur ganti password belum dibuat di scanner eksternal."
-          );
-        } else {
-          clearMessage(el.scannerMessage);
-        }
-
+        clearMessage(el.scannerMessage);
         showScannerPage(userInfo);
 
       } catch (error) {
-        showMessage(
-          el.loginMessage,
-          "error",
-          "Login gagal karena koneksi atau server tidak merespons."
-        );
+        showMessage(el.loginMessage, "error", "Login gagal karena koneksi atau server tidak merespons.");
       } finally {
         el.loginButton.disabled = false;
         el.loginButton.textContent = "Masuk";
       }
     }
-
-    /*
-      ============================================================
-      VALIDASI SESI
-      ============================================================
-    */
 
     async function validateExistingSession() {
       const tokenSesi = getTokenSesi();
@@ -701,29 +699,16 @@
         showScannerPage(userInfo);
 
       } catch (error) {
-        /*
-          Kalau koneksi gagal, jangan langsung menghapus token.
-          Tapi untuk versi awal, kita tampilkan login agar aman.
-        */
         clearSession();
         showLoginPage();
-
-        showMessage(
-          el.loginMessage,
-          "warning",
-          "Sesi belum bisa divalidasi. Silakan login ulang."
-        );
+        showMessage(el.loginMessage, "warning", "Sesi belum bisa divalidasi. Silakan login ulang.");
       }
     }
 
-    /*
-      ============================================================
-      LOGOUT
-      ============================================================
-    */
-
     async function handleLogout() {
       clearMessage(el.scannerMessage);
+
+      await stopCamera();
 
       const tokenSesi = getTokenSesi();
 
@@ -739,10 +724,7 @@
           });
         }
       } catch (error) {
-        /*
-          Kalau logout ke backend gagal, frontend tetap membersihkan sesi lokal.
-          Dari sisi operator, tombol logout berarti keluar dari perangkat ini.
-        */
+        // Sesi lokal tetap dibersihkan.
       } finally {
         clearSession();
 
@@ -750,20 +732,214 @@
         el.logoutButton.textContent = "Logout";
 
         showLoginPage();
+        showMessage(el.loginMessage, "success", "Anda sudah logout dari scanner.");
+      }
+    }
+
+    function generateRequestId() {
+      const waktu = new Date()
+        .toISOString()
+        .replace(/[-:.TZ]/g, "")
+        .slice(0, 14);
+
+      const acak = Math.random()
+        .toString(16)
+        .slice(2, 10)
+        .toUpperCase();
+
+      return "REQ-" + waktu + "-" + acak;
+    }
+
+    async function startCamera() {
+      clearMessage(el.scannerMessage);
+
+      if (!window.Html5Qrcode) {
+        showMessage(el.scannerMessage, "error", "Library QR scanner belum berhasil dimuat.");
+        return;
+      }
+
+      if (cameraActive) {
+        showMessage(el.scannerMessage, "warning", "Kamera sudah aktif.");
+        return;
+      }
+
+      const tokenSesi = getTokenSesi();
+
+      if (!tokenSesi) {
+        clearSession();
+        showLoginPage();
+        showMessage(el.loginMessage, "warning", "Sesi tidak ditemukan. Silakan login ulang.");
+        return;
+      }
+
+      try {
+        qrScanner = new Html5Qrcode("qrReader");
+
+        await qrScanner.start(
+          { facingMode: "environment" },
+          {
+            fps: 10,
+            qrbox: {
+              width: 250,
+              height: 250
+            }
+          },
+          handleQrDetected,
+          function () {
+            // Error scan per frame sengaja diabaikan agar UI tidak berisik.
+          }
+        );
+
+        cameraActive = true;
+        el.startCameraButton.disabled = true;
+        el.stopCameraButton.disabled = false;
+        el.cameraNote.innerHTML = "Kamera aktif. Arahkan kamera ke QR pegawai.";
+
+        showMessage(el.scannerMessage, "success", "Kamera berhasil aktif.");
+
+      } catch (error) {
+        cameraActive = false;
+        el.startCameraButton.disabled = false;
+        el.stopCameraButton.disabled = true;
 
         showMessage(
-          el.loginMessage,
-          "success",
-          "Anda sudah logout dari scanner."
+          el.scannerMessage,
+          "error",
+          "Kamera gagal aktif. Pastikan izin kamera diberikan dan buka lewat HTTPS/GitHub Pages."
         );
       }
     }
 
-    /*
-      ============================================================
-      INIT APP
-      ============================================================
-    */
+    async function stopCamera() {
+      clearCooldown();
+
+      if (!qrScanner || !cameraActive) {
+        cameraActive = false;
+        el.startCameraButton.disabled = false;
+        el.stopCameraButton.disabled = true;
+        return;
+      }
+
+      try {
+        await qrScanner.stop();
+        await qrScanner.clear();
+      } catch (error) {
+        // Tetap lanjut reset UI.
+      } finally {
+        qrScanner = null;
+        cameraActive = false;
+        scanLocked = false;
+
+        el.startCameraButton.disabled = false;
+        el.stopCameraButton.disabled = true;
+        el.cameraNote.innerHTML = "Kamera belum aktif. Tekan tombol <b>Mulai Kamera</b>, lalu izinkan akses kamera dari browser.";
+      }
+    }
+
+    async function handleQrDetected(decodedText) {
+      if (scanLocked) {
+        return;
+      }
+
+      scanLocked = true;
+
+      clearMessage(el.scannerMessage);
+      showMessage(el.scannerMessage, "warning", "QR terbaca. Mengirim data scan...");
+
+      const tokenSesi = getTokenSesi();
+
+      if (!tokenSesi) {
+        clearSession();
+        showLoginPage();
+        showMessage(el.loginMessage, "warning", "Sesi habis. Silakan login ulang.");
+        return;
+      }
+
+      const requestId = generateRequestId();
+
+      try {
+        const result = await postJsonTextPlain({
+          action: "scan",
+          tokenSesi: tokenSesi,
+          payloadQr: decodedText,
+          requestId: requestId,
+          sumberScanner: CONFIG.SUMBER,
+          versiScanner: CONFIG.VERSI_SCANNER
+        });
+
+        renderScanResult(result);
+
+      } catch (error) {
+        renderScanResult({
+          sukses: false,
+          status: "Ditolak",
+          kode: "KONEKSI_GAGAL",
+          pesan: "Scan gagal dikirim. Periksa koneksi internet."
+        });
+      } finally {
+        startFrontendCooldown();
+      }
+    }
+
+    function startFrontendCooldown() {
+      let sisaDetik = Math.ceil(CONFIG.FRONTEND_COOLDOWN_MS / 1000);
+
+      el.cameraNote.textContent = "Cooldown frontend aktif. Tunggu " + sisaDetik + " detik sebelum scan berikutnya.";
+
+      cooldownTimer = setInterval(function () {
+        sisaDetik--;
+
+        if (sisaDetik > 0) {
+          el.cameraNote.textContent = "Cooldown frontend aktif. Tunggu " + sisaDetik + " detik sebelum scan berikutnya.";
+        } else {
+          clearCooldown();
+          scanLocked = false;
+
+          if (cameraActive) {
+            el.cameraNote.textContent = "Kamera aktif. Silakan scan QR berikutnya.";
+          }
+        }
+      }, 1000);
+    }
+
+    function clearCooldown() {
+      if (cooldownTimer) {
+        clearInterval(cooldownTimer);
+        cooldownTimer = null;
+      }
+    }
+
+    function renderScanResult(result) {
+      const status = result?.status || "-";
+      const kode = result?.kode || "-";
+      const pesan = result?.pesan || "Tidak ada pesan.";
+      const data = result?.data || {};
+
+      el.scanResult.className = "scan-result show";
+
+      if (status === "Berhasil" || result?.sukses === true) {
+        el.scanResult.classList.add("scan-success");
+      } else if (status === "Perlu Verifikasi") {
+        el.scanResult.classList.add("scan-warning");
+      } else {
+        el.scanResult.classList.add("scan-error");
+      }
+
+      el.scanResultHeader.textContent = status;
+      el.hasilKode.textContent = kode;
+      el.hasilPesan.textContent = pesan;
+      el.hasilPegawai.textContent = data.namaPegawai || data.idPegawai || "-";
+      el.hasilJenisScan.textContent = data.jenisScan || "-";
+      el.hasilAbsensi.textContent = data.idAbsensi || "-";
+
+      if (status === "Berhasil" || result?.sukses === true) {
+        showMessage(el.scannerMessage, "success", pesan);
+      } else if (status === "Perlu Verifikasi") {
+        showMessage(el.scannerMessage, "warning", pesan);
+      } else {
+        showMessage(el.scannerMessage, "error", pesan);
+      }
+    }
 
     async function initApp() {
       await loadStatusSistem();
@@ -772,6 +948,8 @@
 
     el.loginForm.addEventListener("submit", handleLogin);
     el.logoutButton.addEventListener("click", handleLogout);
+    el.startCameraButton.addEventListener("click", startCamera);
+    el.stopCameraButton.addEventListener("click", stopCamera);
 
     initApp();
   </script>
