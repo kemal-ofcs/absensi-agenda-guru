@@ -236,17 +236,24 @@
             facingMode: 'environment'
           },
           {
-            fps: 10,
-
-            qrbox: function (lebar, tinggi) {
-              const ukuran = Math.floor(
-                Math.min(lebar, tinggi) * 0.7
-              );
-
-              return {
-                width: ukuran,
-                height: ukuran
-              };
+            fps: 20,
+          
+            disableFlip: false,
+          
+            videoConstraints: {
+              facingMode: 'environment',
+          
+              width: {
+                ideal: 1280
+              },
+          
+              height: {
+                ideal: 720
+              },
+          
+              frameRate: {
+                ideal: 30
+              }
             }
           },
           ketikaQrTerbaca,
