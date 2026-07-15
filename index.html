@@ -1,1321 +1,468 @@
 <!DOCTYPE html>
 <html lang="id">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta charset="UTF-8">
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0"
+  >
 
   <title>Scanner Absensi Guru</title>
 
-  <script src="https://unpkg.com/html5-qrcode"></script>
+  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 
   <style>
-    :root {
-      --bg: #f4f6f8;
-      --card: #ffffff;
-      --text: #1f2937;
-      --muted: #6b7280;
-      --border: #e5e7eb;
-      --primary: #2563eb;
-      --primary-dark: #1d4ed8;
-      --danger: #dc2626;
-      --success: #16a34a;
-      --warning: #d97706;
-      --shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
-    }
-
     * {
       box-sizing: border-box;
     }
 
     body {
       margin: 0;
+      min-height: 100vh;
+      padding: 20px;
       font-family: Arial, sans-serif;
-      background: var(--bg);
-      color: var(--text);
+      background: #f3f6fb;
+      color: #1f2937;
     }
 
-    .app {
+    .container {
       width: 100%;
       max-width: 520px;
       margin: 0 auto;
-      padding: 20px;
     }
 
-    .header {
-      text-align: center;
+    .judul {
       margin-bottom: 20px;
+      text-align: center;
     }
 
-    .header h1 {
-      margin: 0;
+    .judul h1 {
+      margin: 0 0 8px;
       font-size: 24px;
-      line-height: 1.3;
     }
 
-    .header p {
-      margin: 8px 0 0;
-      color: var(--muted);
+    .judul p {
+      margin: 0;
+      color: #6b7280;
       font-size: 14px;
     }
 
     .card {
-      background: var(--card);
-      border: 1px solid var(--border);
-      border-radius: 14px;
-      padding: 18px;
-      box-shadow: var(--shadow);
       margin-bottom: 16px;
+      padding: 16px;
+      border-radius: 14px;
+      background: #ffffff;
+      box-shadow: 0 5px 20px rgba(0, 0, 0, 0.08);
     }
 
-    .card h2 {
-      margin: 0 0 14px;
-      font-size: 18px;
-    }
-
-    .info-row {
-      display: flex;
-      justify-content: space-between;
-      gap: 12px;
-      padding: 8px 0;
-      border-bottom: 1px solid var(--border);
-      font-size: 14px;
-    }
-
-    .info-row:last-child {
-      border-bottom: none;
-    }
-
-    .info-label {
-      color: var(--muted);
-    }
-
-    .info-value {
-      font-weight: bold;
-      text-align: right;
-    }
-
-    .badge {
-      display: inline-block;
-      padding: 4px 8px;
-      border-radius: 999px;
-      font-size: 12px;
-      font-weight: bold;
-    }
-
-    .badge-success {
-      background: #dcfce7;
-      color: var(--success);
-    }
-
-    .badge-danger {
-      background: #fee2e2;
-      color: var(--danger);
-    }
-
-    .badge-warning {
-      background: #fef3c7;
-      color: var(--warning);
-    }
-
-    label {
-      display: block;
-      font-size: 14px;
-      font-weight: bold;
-      margin-bottom: 6px;
-    }
-
-    input {
+    #reader {
       width: 100%;
-      padding: 12px;
-      border: 1px solid var(--border);
+      overflow: hidden;
       border-radius: 10px;
-      font-size: 15px;
-      margin-bottom: 14px;
+      background: #111827;
     }
 
-    input:focus {
-      outline: none;
-      border-color: var(--primary);
+    .tombol {
+      display: flex;
+      gap: 10px;
+      margin-top: 16px;
     }
 
     button {
-      width: 100%;
+      flex: 1;
+      padding: 13px 16px;
       border: none;
-      border-radius: 10px;
-      padding: 12px 14px;
+      border-radius: 9px;
       font-size: 15px;
       font-weight: bold;
       cursor: pointer;
-      background: var(--primary);
-      color: white;
-      margin-top: 10px;
     }
 
-    button:hover {
-      background: var(--primary-dark);
+    button:disabled {
+      cursor: not-allowed;
+      opacity: 0.5;
     }
 
-    button:disabled,
-	button:disabled:hover {
-	  background: #9ca3af;
-	  color: #ffffff;
-	  opacity: 0.75;
-	  cursor: not-allowed;
-	}
-
-    .btn-danger {
-      background: var(--danger);
+    #tombolMulai {
+      background: #2563eb;
+      color: #ffffff;
     }
 
-    .btn-danger:hover {
-      background: #b91c1c;
+    #tombolBerhenti {
+      background: #e5e7eb;
+      color: #1f2937;
     }
 
-    .btn-secondary {
-      background: #4b5563;
+    .hasil {
+      min-height: 110px;
+      border-left: 5px solid #9ca3af;
     }
 
-    .btn-secondary:hover {
-      background: #374151;
+    .hasil.idle {
+      border-left-color: #9ca3af;
     }
 
-    .message {
-      margin-top: 12px;
-      padding: 12px;
-      border-radius: 10px;
-      font-size: 14px;
-      display: none;
-      line-height: 1.5;
+    .hasil.loading {
+      border-left-color: #f59e0b;
+      background: #fffbeb;
     }
 
-    .message.show {
-      display: block;
+    .hasil.sukses {
+      border-left-color: #16a34a;
+      background: #f0fdf4;
     }
 
-    .message-success {
-      background: #dcfce7;
-      color: #166534;
-      border: 1px solid #bbf7d0;
+    .hasil.gagal {
+      border-left-color: #dc2626;
+      background: #fef2f2;
     }
 
-    .message-error {
-      background: #fee2e2;
-      color: #991b1b;
-      border: 1px solid #fecaca;
+    #judulHasil {
+      margin: 0 0 10px;
+      font-size: 18px;
     }
 
-    .message-warning {
-      background: #fef3c7;
-      color: #92400e;
-      border: 1px solid #fde68a;
+    #detailHasil {
+      margin: 0;
+      color: #4b5563;
+      line-height: 1.6;
+      white-space: pre-line;
     }
 
-    .hidden {
-      display: none;
-    }
-
-    .footer-note {
-      text-align: center;
-      color: var(--muted);
-      font-size: 12px;
-      margin-top: 20px;
-    }
-
-    #qrReader {
-      width: 100%;
-      overflow: hidden;
-      border-radius: 12px;
-      border: 1px solid var(--border);
-      background: #f9fafb;
-      margin-top: 12px;
-    }
-
-    .camera-note {
-      padding: 12px;
-      border: 1px dashed var(--border);
-      border-radius: 12px;
-      color: var(--muted);
-      font-size: 14px;
-      line-height: 1.5;
-      text-align: center;
-      margin-top: 12px;
-    }
-
-    .scan-result {
+    .catatan {
       margin-top: 14px;
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      overflow: hidden;
-      display: none;
-    }
-
-    .scan-result.show {
-      display: block;
-    }
-
-    .scan-result-header {
-      padding: 12px;
-      font-weight: bold;
-      color: white;
-    }
-
-    .scan-success .scan-result-header {
-      background: var(--success);
-    }
-
-    .scan-warning .scan-result-header {
-      background: var(--warning);
-    }
-
-    .scan-error .scan-result-header {
-      background: var(--danger);
-    }
-
-    .scan-result-body {
-      padding: 12px;
-      background: white;
-    }
-
-    .processing-panel {
-      display: none;
-      margin-top: 12px;
-      padding: 14px;
-      border-radius: 12px;
-      border: 1px solid #bfdbfe;
-      background: #eff6ff;
-      color: #1e40af;
-      font-size: 14px;
+      color: #6b7280;
+      font-size: 12px;
       line-height: 1.5;
       text-align: center;
-      font-weight: bold;
-    }
-
-    .processing-panel.show {
-      display: block;
-    }
-
-    .processing-subtext {
-      display: block;
-      margin-top: 6px;
-      font-size: 12px;
-      font-weight: normal;
-      color: #1d4ed8;
-    }
-
-    .spinner {
-      display: inline-block;
-      width: 18px;
-      height: 18px;
-      border: 3px solid #bfdbfe;
-      border-top-color: #2563eb;
-      border-radius: 50%;
-      vertical-align: middle;
-      margin-right: 8px;
-      animation: spin 0.9s linear infinite;
-    }
-
-    @keyframes spin {
-      to {
-        transform: rotate(360deg);
-      }
-    }
-
-    .small-text {
-      color: var(--muted);
-      font-size: 12px;
-      line-height: 1.5;
     }
   </style>
 </head>
 
 <body>
-  <div class="app">
-    <div class="header">
+  <main class="container">
+    <section class="judul">
       <h1>Scanner Absensi Guru</h1>
-      <p>External Web Scanner v1.0.0</p>
-    </div>
-
-    <section class="card" id="statusCard">
-      <h2>Status Sistem</h2>
-
-      <div class="info-row">
-        <span class="info-label">Nama Sistem</span>
-        <span class="info-value" id="statusNamaSistem">Memuat...</span>
-      </div>
-
-      <div class="info-row">
-        <span class="info-label">Scanner</span>
-        <span class="info-value" id="statusScanner">Memuat...</span>
-      </div>
-
-      <div class="info-row">
-        <span class="info-label">Jam Masuk</span>
-        <span class="info-value" id="statusJamMasuk">-</span>
-      </div>
-
-      <div class="info-row">
-        <span class="info-label">Jam Pulang</span>
-        <span class="info-value" id="statusJamPulang">-</span>
-      </div>
-
-      <div class="info-row">
-        <span class="info-label">Anti Double Scan</span>
-        <span class="info-value" id="statusAntiDouble">-</span>
-      </div>
-
-      <div class="message" id="statusMessage"></div>
+      <p>Clean Build — Tahap 5B</p>
     </section>
 
-    <section class="card" id="loginPage">
-      <h2>Login Operator</h2>
+    <section class="card">
+      <div id="reader"></div>
 
-      <form id="loginForm">
-        <label for="username">Username</label>
-        <input
-          type="text"
-          id="username"
-          autocomplete="username"
-          placeholder="Masukkan username"
-          required
-        />
+      <div class="tombol">
+        <button id="tombolMulai" type="button">
+          Mulai Kamera
+        </button>
 
-        <label for="password">Password</label>
-        <input
-          type="password"
-          id="password"
-          autocomplete="current-password"
-          placeholder="Masukkan password"
-          required
-        />
-
-        <button type="submit" id="loginButton">Masuk</button>
-      </form>
-
-      <div class="message" id="loginMessage"></div>
+        <button id="tombolBerhenti" type="button" disabled>
+          Hentikan
+        </button>
+      </div>
     </section>
 
-    <section class="card hidden" id="scannerPage">
-      <h2>Halaman Scanner</h2>
+    <section id="kotakHasil" class="card hasil idle">
+      <h2 id="judulHasil">Scanner siap</h2>
 
-      <div class="info-row">
-        <span class="info-label">Petugas</span>
-        <span class="info-value" id="petugasNama">-</span>
-      </div>
-
-      <div class="info-row">
-        <span class="info-label">Level Akses</span>
-        <span class="info-value" id="petugasAkses">-</span>
-      </div>
-
-      <div class="camera-note" id="cameraNote">
-        Kamera belum aktif. Tekan tombol <b>Mulai Kamera</b>, lalu izinkan akses kamera dari browser.
-      </div>
-
-      <div id="qrReader"></div>
-
-      <button type="button" id="startCameraButton">Mulai Kamera</button>
-      <button type="button" class="btn-secondary" id="stopCameraButton" disabled>Stop Kamera</button>
-
-      <div class="message" id="scannerMessage"></div>
-	  
-	  <div class="scan-result" id="qrPreviewBox">
-		  <div class="scan-result-header">
-			QR Terbaca
-		  </div>
-
-		  <div class="scan-result-body">
-			<div class="info-row">
-			  <span class="info-label">Format QR</span>
-			  <span class="info-value" id="previewFormatQr">-</span>
-			</div>
-
-			<div class="info-row">
-			  <span class="info-label">ID Pegawai</span>
-			  <span class="info-value" id="previewIdPegawai">-</span>
-			</div>
-
-			<div class="info-row">
-			  <span class="info-label">Token QR</span>
-			  <span class="info-value" id="previewTokenQr">-</span>
-			</div>
-		  </div>
-		</div>
-
-      <div class="scan-result" id="scanResult">
-        <div class="scan-result-header" id="scanResultHeader">
-          Hasil Scan
-        </div>
-
-        <div class="scan-result-body">
-          <div class="info-row">
-            <span class="info-label">Kode</span>
-            <span class="info-value" id="hasilKode">-</span>
-          </div>
-
-          <div class="info-row">
-            <span class="info-label">Pesan</span>
-            <span class="info-value" id="hasilPesan">-</span>
-          </div>
-
-          <div class="info-row">
-            <span class="info-label">Pegawai</span>
-            <span class="info-value" id="hasilPegawai">-</span>
-          </div>
-
-          <div class="info-row">
-            <span class="info-label">Jenis Scan</span>
-            <span class="info-value" id="hasilJenisScan">-</span>
-          </div>
-
-          <div class="info-row">
-            <span class="info-label">ID Absensi</span>
-            <span class="info-value" id="hasilAbsensi">-</span>
-          </div>
-        </div>
-      </div>
-
-      <p class="small-text">
-        Catatan: payload QR dan token sesi tidak ditampilkan untuk menjaga keamanan.
+      <p id="detailHasil">
+        Tekan tombol Mulai Kamera, lalu arahkan kamera ke QR.
       </p>
-
-      <button type="button" class="btn-danger" id="logoutButton">
-        Logout
-      </button>
     </section>
 
-    <div class="footer-note">
-      Jangan gunakan perangkat umum tanpa logout.
-    </div>
-  </div>
+    <p class="catatan">
+      Tahap ini hanya membaca dan memvalidasi ID Pegawai.
+      Belum mencatat LOG_SCAN atau ABSENSI_HARIAN.
+    </p>
+  </main>
 
   <script>
-    const CONFIG = {
-      WEB_APP_URL: "https://script.google.com/macros/s/AKfycbwh-Wn51p34t1dOq0atzHhPFBKAykCoTg9o8zD8r6Mjv601eNnYS_03276256za4RM/exec",
-      SUMBER: "External Web Scanner",
-      VERSI_SCANNER: "1.0.0",
-      STORAGE_TOKEN_KEY: "scanner_token_sesi",
-      STORAGE_USER_KEY: "scanner_user_info",
-      STORAGE_STATUS_KEY: "scanner_status_cache",
-      STATUS_CACHE_MS: 5 * 60 * 1000,
-      REQUEST_TIMEOUT_MS: 90000,
-      FRONTEND_COOLDOWN_MS: 5000
-    };
+    const WEB_APP_URL =
+      'https://script.google.com/macros/s/AKfycby5y_Z_V_frLDlnEu-BcSRqKoHIux63-Whpo5n0X2O092kCwhDt70JPV5MBL3TgNy8wxw/exec';
 
-    const el = {
-      statusNamaSistem: document.getElementById("statusNamaSistem"),
-      statusScanner: document.getElementById("statusScanner"),
-      statusJamMasuk: document.getElementById("statusJamMasuk"),
-      statusJamPulang: document.getElementById("statusJamPulang"),
-      statusAntiDouble: document.getElementById("statusAntiDouble"),
-      statusMessage: document.getElementById("statusMessage"),
+    const scanner = new Html5Qrcode('reader');
 
-      loginPage: document.getElementById("loginPage"),
-      loginForm: document.getElementById("loginForm"),
-      username: document.getElementById("username"),
-      password: document.getElementById("password"),
-      loginButton: document.getElementById("loginButton"),
-      loginMessage: document.getElementById("loginMessage"),
+    const tombolMulai =
+      document.getElementById('tombolMulai');
 
-      scannerPage: document.getElementById("scannerPage"),
-      petugasNama: document.getElementById("petugasNama"),
-      petugasAkses: document.getElementById("petugasAkses"),
-      scannerMessage: document.getElementById("scannerMessage"),
-      processingPanel: document.getElementById("processingPanel"),
-      processingText: document.getElementById("processingText"),
-      processingSubtext: document.getElementById("processingSubtext"),
-      logoutButton: document.getElementById("logoutButton"),
+    const tombolBerhenti =
+      document.getElementById('tombolBerhenti');
 
-      cameraNote: document.getElementById("cameraNote"),
-      startCameraButton: document.getElementById("startCameraButton"),
-      stopCameraButton: document.getElementById("stopCameraButton"),
-	  
-	  qrPreviewBox: document.getElementById("qrPreviewBox"),
-		previewFormatQr: document.getElementById("previewFormatQr"),
-		previewIdPegawai: document.getElementById("previewIdPegawai"),
-		previewTokenQr: document.getElementById("previewTokenQr"),
+    const kotakHasil =
+      document.getElementById('kotakHasil');
 
-      scanResult: document.getElementById("scanResult"),
-      scanResultHeader: document.getElementById("scanResultHeader"),
-      hasilKode: document.getElementById("hasilKode"),
-      hasilPesan: document.getElementById("hasilPesan"),
-      hasilPegawai: document.getElementById("hasilPegawai"),
-      hasilJenisScan: document.getElementById("hasilJenisScan"),
-      hasilAbsensi: document.getElementById("hasilAbsensi")
-    };
+    const judulHasil =
+      document.getElementById('judulHasil');
 
-    let qrScanner = null;
-    let cameraActive = false;
-    let scanLocked = false;
-    let cooldownTimer = null;
+    const detailHasil =
+      document.getElementById('detailHasil');
 
-    function showMessage(target, type, text) {
-      target.className = "message show";
+    let kameraAktif = false;
+    let sedangMemproses = false;
 
-      if (type === "success") {
-        target.classList.add("message-success");
-      } else if (type === "warning") {
-        target.classList.add("message-warning");
-      } else {
-        target.classList.add("message-error");
+    tombolMulai.addEventListener(
+      'click',
+      mulaiKamera
+    );
+
+    tombolBerhenti.addEventListener(
+      'click',
+      hentikanKamera
+    );
+
+
+    async function mulaiKamera() {
+      if (kameraAktif) {
+        return;
       }
-
-      target.textContent = text;
-    }
-
-    function clearMessage(target) {
-      target.className = "message";
-      target.textContent = "";
-    }
-
-    function saveSession(tokenSesi, userInfo) {
-      sessionStorage.setItem(CONFIG.STORAGE_TOKEN_KEY, tokenSesi);
-      sessionStorage.setItem(CONFIG.STORAGE_USER_KEY, JSON.stringify(userInfo));
-    }
-
-    function getTokenSesi() {
-      return sessionStorage.getItem(CONFIG.STORAGE_TOKEN_KEY);
-    }
-
-    function clearSession() {
-      sessionStorage.removeItem(CONFIG.STORAGE_TOKEN_KEY);
-      sessionStorage.removeItem(CONFIG.STORAGE_USER_KEY);
-    }
-
-    async function fetchJsonWithTimeout(url, options, timeoutMs) {
-      const controller = new AbortController();
-      const timer = setTimeout(function () {
-        controller.abort();
-      }, timeoutMs || CONFIG.REQUEST_TIMEOUT_MS);
 
       try {
-        const response = await fetch(url, Object.assign({}, options || {}, {
-          signal: controller.signal
-        }));
+        sedangMemproses = false;
 
-        return await response.json();
-      } finally {
-        clearTimeout(timer);
-      }
-    }
+        tampilkanHasil(
+          'loading',
+          'Membuka kamera',
+          'Izinkan browser menggunakan kamera.'
+        );
 
-    async function postJsonTextPlain(payload) {
-      return await fetchJsonWithTimeout(
-        CONFIG.WEB_APP_URL,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "text/plain"
+        await scanner.start(
+          {
+            facingMode: 'environment'
           },
-          body: JSON.stringify(payload)
-        },
-        CONFIG.REQUEST_TIMEOUT_MS
-      );
-    }
-
-    async function getStatusSistem() {
-      const url = CONFIG.WEB_APP_URL + "?action=status";
-
-      return await fetchJsonWithTimeout(
-        url,
-        {
-          method: "GET"
-        },
-        CONFIG.REQUEST_TIMEOUT_MS
-      );
-    }
-
-    function getInformasiPerangkat() {
-      return [
-        "UserAgent: " + navigator.userAgent,
-        "Platform: " + navigator.platform,
-        "Language: " + navigator.language
-      ].join(" | ");
-    }
-
-    function formatJam(value) {
-      if (!value || typeof value !== "string") {
-        return "-";
-      }
-
-      return value.substring(0, 5);
-    }
-
-    function renderStatusSistem(data) {
-      el.statusNamaSistem.textContent = data.namaSistem || "-";
-
-      if (data.scannerAktif === true) {
-        el.statusScanner.innerHTML = '<span class="badge badge-success">Aktif</span>';
-      } else {
-        el.statusScanner.innerHTML = '<span class="badge badge-danger">Nonaktif</span>';
-      }
-
-      el.statusJamMasuk.textContent =
-        formatJam(data.jamMasukBuka) + " - " + formatJam(data.jamMasukTutup);
-
-      el.statusJamPulang.textContent =
-        formatJam(data.jamPulangBuka) + " - " + formatJam(data.jamPulangTutup);
-
-      el.statusAntiDouble.textContent =
-        (data.antiDoubleScanDetik || 60) + " detik";
-    }
-
-    function saveStatusCache(data) {
-      try {
-        sessionStorage.setItem(CONFIG.STORAGE_STATUS_KEY, JSON.stringify({
-          savedAt: Date.now(),
-          data: data
-        }));
-      } catch (error) {
-        // Cache status tidak wajib.
-      }
-    }
-
-    function renderCachedStatusIfFresh() {
-      try {
-        const raw = sessionStorage.getItem(CONFIG.STORAGE_STATUS_KEY);
-
-        if (!raw) {
-          return false;
-        }
-
-        const cached = JSON.parse(raw);
-
-        if (
-          !cached ||
-          !cached.data ||
-          !cached.savedAt ||
-          Date.now() - cached.savedAt > CONFIG.STATUS_CACHE_MS
-        ) {
-          return false;
-        }
-
-        renderStatusSistem(cached.data);
-        showMessage(el.statusMessage, "warning", "Status sistem memakai cache sementara. Sedang memperbarui data terbaru...");
-        return true;
-      } catch (error) {
-        return false;
-      }
-    }
-
-    async function loadStatusSistem() {
-      clearMessage(el.statusMessage);
-
-      try {
-        const result = await getStatusSistem();
-
-        if (!result || result.sukses !== true) {
-          el.statusNamaSistem.textContent = "-";
-          el.statusScanner.innerHTML = '<span class="badge badge-danger">Gagal</span>';
-          showMessage(el.statusMessage, "error", "Status sistem gagal dimuat.");
-          return;
-        }
-
-        const data = result.data || {};
-
-        renderStatusSistem(data);
-        saveStatusCache(data);
-        clearMessage(el.statusMessage);
-
-      } catch (error) {
-        el.statusNamaSistem.textContent = "-";
-        el.statusScanner.innerHTML = '<span class="badge badge-danger">Error</span>';
-        showMessage(el.statusMessage, "error", "Tidak bisa terhubung ke status sistem.");
-      }
-    }
-
-    function showLoginPage() {
-      el.loginPage.classList.remove("hidden");
-      el.scannerPage.classList.add("hidden");
-      el.password.value = "";
-    }
-
-    function showScannerPage(userInfo) {
-      el.loginPage.classList.add("hidden");
-      el.scannerPage.classList.remove("hidden");
-
-      const namaPetugas =
-        userInfo?.sesi?.namaPetugas ||
-        userInfo?.akun?.username ||
-        "-";
-
-      const tingkatAkses =
-        userInfo?.akun?.tingkatAkses ||
-        userInfo?.sesi?.tingkatAkses ||
-        "-";
-
-      const peranAkses =
-        userInfo?.akun?.peranAkses ||
-        "Level " + tingkatAkses;
-
-      el.petugasNama.textContent = namaPetugas;
-      el.petugasAkses.textContent = peranAkses;
-    }
-
-    async function handleLogin(event) {
-      event.preventDefault();
-
-      clearMessage(el.loginMessage);
-
-      const username = el.username.value.trim();
-      const password = el.password.value;
-
-      if (!username || !password) {
-        showMessage(el.loginMessage, "warning", "Username dan password wajib diisi.");
-        return;
-      }
-
-      el.loginButton.disabled = true;
-      el.loginButton.textContent = "Memproses...";
-
-      try {
-        const result = await postJsonTextPlain({
-          action: "login",
-          username: username,
-          password: password,
-          sumber: CONFIG.SUMBER,
-          versiScanner: CONFIG.VERSI_SCANNER,
-          informasiPerangkat: getInformasiPerangkat()
-        });
-
-        el.password.value = "";
-
-        if (!result || result.sukses !== true) {
-          showMessage(
-            el.loginMessage,
-            "error",
-            result?.pesan || "Login gagal. Periksa username dan password."
-          );
-          return;
-        }
-
-        const data = result.data || {};
-        const tokenSesi = data.tokenSesi;
-
-        if (!tokenSesi) {
-          showMessage(el.loginMessage, "error", "Login berhasil, tetapi token sesi tidak diterima.");
-          return;
-        }
-
-        const userInfo = {
-          sesi: data.sesi || {},
-          akun: data.akun || {},
-          wajibGantiPassword: data.wajibGantiPassword === true
-        };
-
-        saveSession(tokenSesi, userInfo);
-        clearMessage(el.scannerMessage);
-        showScannerPage(userInfo);
-
-      } catch (error) {
-        showMessage(el.loginMessage, "error", "Login gagal karena koneksi atau server tidak merespons.");
-      } finally {
-        el.loginButton.disabled = false;
-        el.loginButton.textContent = "Masuk";
-      }
-    }
-
-    async function validateExistingSession() {
-      const tokenSesi = getTokenSesi();
-
-      if (!tokenSesi) {
-        clearSession();
-        showLoginPage();
-        return;
-      }
-
-      try {
-        const result = await postJsonTextPlain({
-          action: "validate_session",
-          tokenSesi: tokenSesi
-        });
-
-        if (!result || result.sukses !== true || result.kode !== "SESI_VALID") {
-          clearSession();
-          showLoginPage();
-          return;
-        }
-
-        const data = result.data || {};
-
-        const userInfo = {
-          sesi: data.sesi || {},
-          akun: data.akun || {}
-        };
-
-        saveSession(tokenSesi, userInfo);
-        showScannerPage(userInfo);
-
-      } catch (error) {
-        clearSession();
-        showLoginPage();
-        showMessage(el.loginMessage, "warning", "Sesi belum bisa divalidasi. Silakan login ulang.");
-      }
-    }
-	
-	async function validateSessionBeforeScan() {
-	  const tokenSesi = getTokenSesi();
-
-	  if (!tokenSesi) {
-		clearSession();
-		showLoginPage();
-		showMessage(el.loginMessage, "warning", "Sesi tidak ditemukan. Silakan login ulang.");
-		return false;
-	  }
-
-	  try {
-		const result = await postJsonTextPlain({
-		  action: "validate_session",
-		  tokenSesi: tokenSesi
-		});
-
-		if (!result || result.sukses !== true || result.kode !== "SESI_VALID") {
-		  clearSession();
-		  await stopCamera();
-		  showLoginPage();
-		  showMessage(el.loginMessage, "warning", "Sesi scanner tidak valid atau telah berakhir. Silakan login ulang.");
-		  return false;
-		}
-
-		return true;
-
-	  } catch (error) {
-		showMessage(
-		  el.scannerMessage,
-		  "error",
-		  "Sesi belum bisa divalidasi. Periksa koneksi internet lalu coba lagi."
-		);
-
-		return false;
-	  }
-	}
-
-    async function handleLogout() {
-      clearMessage(el.scannerMessage);
-
-      await stopCamera();
-
-      const tokenSesi = getTokenSesi();
-
-      el.logoutButton.disabled = true;
-      el.logoutButton.textContent = "Logout...";
-
-      try {
-        if (tokenSesi) {
-          await postJsonTextPlain({
-            action: "logout",
-            tokenSesi: tokenSesi,
-            alasan: "Logout dari website scanner."
-          });
-        }
-      } catch (error) {
-        // Sesi lokal tetap dibersihkan.
-      } finally {
-        clearSession();
-
-        el.logoutButton.disabled = false;
-        el.logoutButton.textContent = "Logout";
-
-        showLoginPage();
-        showMessage(el.loginMessage, "success", "Anda sudah logout dari scanner.");
-      }
-    }
-
-    function generateRequestId() {
-      const waktu = new Date()
-        .toISOString()
-        .replace(/[-:.TZ]/g, "")
-        .slice(0, 14);
-
-      const acak = Math.random()
-        .toString(16)
-        .slice(2, 10)
-        .toUpperCase();
-
-      return "REQ-" + waktu + "-" + acak;
-    }
-	
-	function parseQrPayloadSafe(payloadQr) {
-		  if (!payloadQr || typeof payloadQr !== "string") {
-			return {
-			  valid: false,
-			  idPegawai: "-",
-			  tokenMasked: "-",
-			  pesan: "Payload QR kosong atau tidak valid."
-			};
-		  }
-
-		  const parts = payloadQr.split("|");
-
-		  if (parts.length !== 2) {
-			return {
-			  valid: false,
-			  idPegawai: "-",
-			  tokenMasked: "-",
-			  pesan: "Format QR tidak sesuai. Format wajib: ID_Pegawai|Token."
-			};
-		  }
-
-		  const idPegawai = parts[0].trim();
-		  const token = parts[1].trim();
-
-		  if (!idPegawai || !token) {
-			return {
-			  valid: false,
-			  idPegawai: idPegawai || "-",
-			  tokenMasked: "-",
-			  pesan: "ID Pegawai atau token QR kosong."
-			};
-		  }
-
-		  return {
-			valid: true,
-			idPegawai: idPegawai,
-			tokenMasked: maskToken(token),
-			pesan: "Format QR terbaca."
-		  };
-		}
-
-		function maskToken(token) {
-		  if (!token || token.length < 6) {
-			return "***";
-		  }
-
-		  const depan = token.substring(0, 2);
-		  const belakang = token.substring(token.length - 2);
-
-		  return depan + "***" + belakang;
-		}
-
-		function renderQrPreviewSafe(payloadQr) {
-		  const parsed = parseQrPayloadSafe(payloadQr);
-
-		  el.qrPreviewBox.className = "scan-result show scan-warning";
-		  el.previewFormatQr.textContent = parsed.valid ? "Valid" : "Tidak Valid";
-		  el.previewIdPegawai.textContent = parsed.idPegawai;
-		  el.previewTokenQr.textContent = parsed.tokenMasked;
-
-		  return parsed;
-		}
-
-    async function startCamera() {
-      clearMessage(el.scannerMessage);
-
-      if (!window.Html5Qrcode) {
-        showMessage(el.scannerMessage, "error", "Library QR scanner belum berhasil dimuat.");
-        return;
-      }
-
-      if (cameraActive) {
-        showMessage(el.scannerMessage, "warning", "Kamera sudah aktif.");
-        return;
-      }
-
-      const tokenSesi = getTokenSesi();
-
-      if (!tokenSesi) {
-        clearSession();
-        showLoginPage();
-        showMessage(el.loginMessage, "warning", "Sesi tidak ditemukan. Silakan login ulang.");
-        return;
-      }
-
-      try {
-        qrScanner = new Html5Qrcode("qrReader");
-
-        await qrScanner.start(
-          { facingMode: "environment" },
           {
             fps: 10,
-            qrbox: {
-              width: 250,
-              height: 250
+
+            qrbox: function (lebar, tinggi) {
+              const ukuran = Math.floor(
+                Math.min(lebar, tinggi) * 0.7
+              );
+
+              return {
+                width: ukuran,
+                height: ukuran
+              };
             }
           },
-          handleQrDetected,
+          ketikaQrTerbaca,
           function () {
-            // Error scan per frame sengaja diabaikan agar UI tidak berisik.
+            /*
+             * Error pembacaan setiap frame
+             * sengaja tidak ditampilkan.
+             */
           }
         );
 
-        cameraActive = true;
-        el.startCameraButton.disabled = true;
-		el.startCameraButton.textContent = "Kamera Aktif";
-		el.stopCameraButton.disabled = false;
-		el.cameraNote.innerHTML = "Kamera aktif. Arahkan kamera ke QR pegawai.";
+        kameraAktif = true;
+        aturTombolKamera();
 
-        showMessage(el.scannerMessage, "success", "Kamera berhasil aktif.");
-
-      } catch (error) {
-        cameraActive = false;
-        el.startCameraButton.disabled = false;
-        el.stopCameraButton.disabled = true;
-
-        showMessage(
-          el.scannerMessage,
-          "error",
-          "Kamera gagal aktif. Pastikan izin kamera diberikan dan buka lewat HTTPS/GitHub Pages."
+        tampilkanHasil(
+          'idle',
+          'Kamera aktif',
+          'Arahkan kamera ke QR pegawai.'
         );
+      } catch (error) {
+        kameraAktif = false;
+        aturTombolKamera();
+
+        tampilkanHasil(
+          'gagal',
+          'Kamera gagal dibuka',
+          'Periksa izin kamera dan pastikan website dibuka melalui HTTPS.'
+        );
+
+        console.error(error);
       }
     }
 
-    async function stopCamera() {
-      clearCooldown();
 
-		if (!qrScanner || !cameraActive) {
-		  cameraActive = false;
-		  el.startCameraButton.disabled = false;
-		  el.startCameraButton.textContent = "Mulai Kamera";
-		  el.stopCameraButton.disabled = true;
-		  return;
-		}
+    async function hentikanKamera() {
+      if (!kameraAktif) {
+        return;
+      }
 
       try {
-        await qrScanner.stop();
-        await qrScanner.clear();
+        await scanner.stop();
       } catch (error) {
-        // Tetap lanjut reset UI.
-      } finally {
-        qrScanner = null;
-        cameraActive = false;
-        scanLocked = false;
-
-        el.startCameraButton.disabled = false;
-		el.startCameraButton.textContent = "Mulai Kamera";
-		el.stopCameraButton.disabled = true;
-		el.cameraNote.innerHTML = "Kamera belum aktif. Tekan tombol <b>Mulai Kamera</b>, lalu izinkan akses kamera dari browser.";
+        console.error(error);
       }
+
+      kameraAktif = false;
+      aturTombolKamera();
     }
 
-    function setScanProcessing(active, mainText, subText) {
-      if (active) {
-        el.processingPanel.classList.add("show");
-        el.processingText.textContent = mainText || "Sedang memproses scan...";
-        el.processingSubtext.textContent =
-          subText || "Mohon tunggu. Jangan scan QR lain sebelum proses selesai.";
 
-        el.startCameraButton.disabled = true;
-        el.stopCameraButton.disabled = true;
-        el.logoutButton.disabled = true;
-        el.cameraNote.textContent = "QR sudah terbaca. Scanner dikunci sementara sampai response backend diterima.";
-      } else {
-        el.processingPanel.classList.remove("show");
-        el.processingText.textContent = "Sedang memproses...";
-        el.processingSubtext.textContent = "Mohon tunggu. Jangan scan QR lain sebelum proses selesai.";
-
-        if (cameraActive) {
-          el.startCameraButton.disabled = true;
-          el.stopCameraButton.disabled = false;
-        } else {
-          el.startCameraButton.disabled = false;
-          el.stopCameraButton.disabled = true;
-        }
-
-        el.logoutButton.disabled = false;
+    async function ketikaQrTerbaca(teksQr) {
+      if (sedangMemproses) {
+        return;
       }
-    }
 
-    function pauseScannerWhileProcessing() {
-      if (
-        qrScanner &&
-        cameraActive &&
-        typeof qrScanner.pause === "function"
-      ) {
-        try {
-          qrScanner.pause(true);
-        } catch (error) {
-          // Jika browser/library tidak mendukung pause, scanLocked tetap melindungi request ganda.
-        }
+      sedangMemproses = true;
+
+      const idPegawai = String(teksQr || '')
+        .trim()
+        .toUpperCase();
+
+      await hentikanKamera();
+
+      /*
+       * Tahap ini hanya menerima ID sederhana,
+       * misalnya G001.
+       */
+      const formatValid =
+        /^[A-Z0-9_-]{1,30}$/.test(idPegawai);
+
+      if (!formatValid) {
+        tampilkanHasil(
+          'gagal',
+          'Format QR tidak valid',
+          'Isi QR harus berupa ID Pegawai sederhana.'
+        );
+
+        return;
       }
-    }
 
-    function resumeScannerAfterProcessing() {
-      if (
-        qrScanner &&
-        cameraActive &&
-        typeof qrScanner.resume === "function"
-      ) {
-        try {
-          qrScanner.resume();
-        } catch (error) {
-          // Jika resume gagal, operator masih bisa stop dan mulai ulang kamera.
-        }
-      }
-    }
-
-    async function handleQrDetected(decodedText) {
-	  if (scanLocked) {
-		return;
-	  }
-
-	  scanLocked = true;
-      pauseScannerWhileProcessing();
-
-	  clearMessage(el.scannerMessage);
-      setScanProcessing(
-        true,
-        "QR terbaca. Mengirim data scan...",
-        "Backend sedang memvalidasi sesi, token QR, kalender kerja, dan data absensi."
+      tampilkanHasil(
+        'loading',
+        'Memeriksa ID',
+        'ID hasil scan: ' + idPegawai
       );
 
-	  const parsed = renderQrPreviewSafe(decodedText);
-
-	  if (!parsed.valid) {
-		renderScanResult({
-		  sukses: false,
-		  status: "Ditolak",
-		  kode: "FORMAT_QR_FRONTEND_TIDAK_VALID",
-		  pesan: parsed.pesan
-		});
-
-        setScanProcessing(false);
-		startFrontendCooldown();
-		return;
-	  }
-
-	  showMessage(el.scannerMessage, "warning", "QR terbaca. Mengirim data scan...");
-
-	  const tokenSesi = getTokenSesi();
-
-	  if (!tokenSesi) {
-		clearSession();
-		showLoginPage();
-		showMessage(el.loginMessage, "warning", "Sesi habis. Silakan login ulang.");
-        setScanProcessing(false);
-		scanLocked = false;
-		return;
-	  }
-
-	  const requestId = generateRequestId();
-
-	  try {
-		const result = await postJsonTextPlain({
-		  action: "scan",
-		  tokenSesi: tokenSesi,
-		  payloadQr: decodedText,
-		  requestId: requestId,
-		  sumberScanner: CONFIG.SUMBER,
-		  versiScanner: CONFIG.VERSI_SCANNER
-		});
-
-		const sesiTidakValid =
-		  result &&
-		  result.sukses === false &&
-		  (
-			result.kode === "SESI_TIDAK_VALID" ||
-			result.kode === "TOKEN_SESI_TIDAK_VALID" ||
-			result.kode === "SESSION_TIDAK_VALID" ||
-			result.pesan === "Sesi scanner tidak valid atau telah berakhir."
-		  );
-
-		if (sesiTidakValid) {
-		  clearSession();
-		  await stopCamera();
-		  showLoginPage();
-
-		  showMessage(
-			el.loginMessage,
-			"warning",
-			"Sesi scanner tidak valid atau telah berakhir. Silakan login ulang."
-		  );
-
-          setScanProcessing(false);
-		  scanLocked = false;
-		  return;
-		}
-
-		renderScanResult(result);
-
-	  } catch (error) {
-		renderScanResult({
-		  sukses: false,
-		  status: "Ditolak",
-		  kode: "KONEKSI_GAGAL",
-		  pesan: "Scan gagal dikirim. Periksa koneksi internet."
-		});
-	  } finally {
-        setScanProcessing(false);
-		startFrontendCooldown();
-	  }
-	}
-
-    function startFrontendCooldown() {
-      clearCooldown();
-
-      let sisaDetik = Math.ceil(CONFIG.FRONTEND_COOLDOWN_MS / 1000);
-
-      el.cameraNote.textContent = "Cooldown frontend aktif. Tunggu " + sisaDetik + " detik sebelum scan berikutnya.";
-
-      cooldownTimer = setInterval(function () {
-        sisaDetik--;
-
-        if (sisaDetik > 0) {
-          el.cameraNote.textContent = "Cooldown frontend aktif. Tunggu " + sisaDetik + " detik sebelum scan berikutnya.";
-        } else {
-          clearCooldown();
-          scanLocked = false;
-
-          if (cameraActive) {
-            resumeScannerAfterProcessing();
-            el.cameraNote.textContent = "Kamera aktif. Silakan scan QR berikutnya.";
-          }
-        }
-      }, 1000);
+      kirimKeApi(idPegawai);
     }
 
-    function clearCooldown() {
-      if (cooldownTimer) {
-        clearInterval(cooldownTimer);
-        cooldownTimer = null;
-      }
-    }
 
-    function renderScanResult(result) {
-      const status = result?.status || "-";
-      const kode = result?.kode || "-";
-      const pesan = result?.pesan || "Tidak ada pesan.";
-      const data = result?.data || {};
+    function kirimKeApi(idPegawai) {
+      /*
+       * Callback unik diperlukan agar website
+       * eksternal dapat membaca respons Apps Script.
+       */
+      const callbackName =
+        'callbackScan_' + Date.now();
 
-      el.scanResult.className = "scan-result show";
+      const elemenScript =
+        document.createElement('script');
 
-      if (status === "Berhasil" || result?.sukses === true) {
-        el.scanResult.classList.add("scan-success");
-      } else if (status === "Perlu Verifikasi") {
-        el.scanResult.classList.add("scan-warning");
-      } else {
-        el.scanResult.classList.add("scan-error");
+      let batasWaktu;
+
+      function hapusPermintaan() {
+        clearTimeout(batasWaktu);
+        elemenScript.remove();
+        delete window[callbackName];
       }
 
-      el.scanResultHeader.textContent = status;
-      el.hasilKode.textContent = kode;
-      el.hasilPesan.textContent = pesan;
-      el.hasilPegawai.textContent = data.namaPegawai || data.idPegawai || "-";
-      el.hasilJenisScan.textContent = data.jenisScan || "-";
-      el.hasilAbsensi.textContent = data.idAbsensi || "-";
+      window[callbackName] = function (hasil) {
+        hapusPermintaan();
+        tampilkanResponsApi(hasil);
+      };
 
-      if (status === "Berhasil" || result?.sukses === true) {
-        showMessage(el.scannerMessage, "success", pesan);
-      } else if (status === "Perlu Verifikasi") {
-        showMessage(el.scannerMessage, "warning", pesan);
-      } else {
-        showMessage(el.scannerMessage, "error", pesan);
+      elemenScript.onerror = function () {
+        hapusPermintaan();
+
+        tampilkanHasil(
+          'gagal',
+          'API tidak dapat dihubungi',
+          'Periksa URL Web App dan koneksi internet.'
+        );
+      };
+
+      batasWaktu = setTimeout(function () {
+        hapusPermintaan();
+
+        tampilkanHasil(
+          'gagal',
+          'Waktu tunggu habis',
+          'Apps Script tidak memberikan respons dalam 15 detik.'
+        );
+      }, 15000);
+
+      const parameter =
+        '?aksi=cariPegawai' +
+        '&idPegawai=' +
+        encodeURIComponent(idPegawai) +
+        '&callback=' +
+        encodeURIComponent(callbackName) +
+        '&waktu=' +
+        Date.now();
+
+      elemenScript.src =
+        WEB_APP_URL + parameter;
+
+      document.body.appendChild(elemenScript);
+    }
+
+
+    function tampilkanResponsApi(hasil) {
+      if (!hasil || typeof hasil !== 'object') {
+        tampilkanHasil(
+          'gagal',
+          'Respons tidak valid',
+          'API memberikan respons yang tidak dikenali.'
+        );
+
+        return;
       }
+
+      if (hasil.berhasil) {
+        const pegawai = hasil.data;
+
+        tampilkanHasil(
+          'sukses',
+          'QR berhasil diverifikasi',
+          'ID: ' + pegawai.idPegawai +
+          '\nNama: ' + pegawai.namaLengkap +
+          '\nJabatan: ' + pegawai.jabatan +
+          '\nStatus: ' + pegawai.statusPegawai
+        );
+
+        return;
+      }
+
+      let detail =
+        hasil.pesan || 'Scan ditolak.';
+
+      if (hasil.data) {
+        detail +=
+          '\nID: ' +
+          (hasil.data.idPegawai || '-') +
+
+          '\nNama: ' +
+          (hasil.data.namaLengkap || '-') +
+
+          '\nStatus: ' +
+          (hasil.data.statusPegawai || '-');
+      }
+
+      tampilkanHasil(
+        'gagal',
+        hasil.kode || 'Scan ditolak',
+        detail
+      );
     }
 
-    async function initApp() {
-      renderCachedStatusIfFresh();
 
-      await Promise.allSettled([
-        loadStatusSistem(),
-        validateExistingSession()
-      ]);
+    function tampilkanHasil(
+      tipe,
+      judul,
+      detail
+    ) {
+      kotakHasil.className =
+        'card hasil ' + tipe;
+
+      judulHasil.textContent = judul;
+      detailHasil.textContent = detail;
     }
 
-    el.loginForm.addEventListener("submit", handleLogin);
-    el.logoutButton.addEventListener("click", handleLogout);
-    el.startCameraButton.addEventListener("click", startCamera);
-    el.stopCameraButton.addEventListener("click", stopCamera);
 
-    initApp();
+    function aturTombolKamera() {
+      tombolMulai.disabled =
+        kameraAktif;
+
+      tombolBerhenti.disabled =
+        !kameraAktif;
+
+      tombolMulai.textContent =
+        kameraAktif
+          ? 'Kamera Aktif'
+          : 'Mulai Kamera';
+    }
   </script>
 </body>
 </html>
