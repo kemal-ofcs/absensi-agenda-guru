@@ -276,6 +276,50 @@
       background: white;
     }
 
+    .processing-panel {
+      display: none;
+      margin-top: 12px;
+      padding: 14px;
+      border-radius: 12px;
+      border: 1px solid #bfdbfe;
+      background: #eff6ff;
+      color: #1e40af;
+      font-size: 14px;
+      line-height: 1.5;
+      text-align: center;
+      font-weight: bold;
+    }
+
+    .processing-panel.show {
+      display: block;
+    }
+
+    .processing-subtext {
+      display: block;
+      margin-top: 6px;
+      font-size: 12px;
+      font-weight: normal;
+      color: #1d4ed8;
+    }
+
+    .spinner {
+      display: inline-block;
+      width: 18px;
+      height: 18px;
+      border: 3px solid #bfdbfe;
+      border-top-color: #2563eb;
+      border-radius: 50%;
+      vertical-align: middle;
+      margin-right: 8px;
+      animation: spin 0.9s linear infinite;
+    }
+
+    @keyframes spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
     .small-text {
       color: var(--muted);
       font-size: 12px;
@@ -451,6 +495,9 @@
       VERSI_SCANNER: "1.0.0",
       STORAGE_TOKEN_KEY: "scanner_token_sesi",
       STORAGE_USER_KEY: "scanner_user_info",
+      STORAGE_STATUS_KEY: "scanner_status_cache",
+      STATUS_CACHE_MS: 5 * 60 * 1000,
+      REQUEST_TIMEOUT_MS: 90000,
       FRONTEND_COOLDOWN_MS: 5000
     };
 
@@ -473,6 +520,9 @@
       petugasNama: document.getElementById("petugasNama"),
       petugasAkses: document.getElementById("petugasAkses"),
       scannerMessage: document.getElementById("scannerMessage"),
+      processingPanel: document.getElementById("processingPanel"),
+      processingText: document.getElementById("processingText"),
+      processingSubtext: document.getElementById("processingSubtext"),
       logoutButton: document.getElementById("logoutButton"),
 
       cameraNote: document.getElementById("cameraNote"),
@@ -531,25 +581,47 @@
       sessionStorage.removeItem(CONFIG.STORAGE_USER_KEY);
     }
 
-    async function postJsonTextPlain(payload) {
-      const response = await fetch(CONFIG.WEB_APP_URL, {
-        method: "POST",
-        headers: {
-          "Content-Type": "text/plain"
-        },
-        body: JSON.stringify(payload)
-      });
+    async function fetchJsonWithTimeout(url, options, timeoutMs) {
+      const controller = new AbortController();
+      const timer = setTimeout(function () {
+        controller.abort();
+      }, timeoutMs || CONFIG.REQUEST_TIMEOUT_MS);
 
-      return await response.json();
+      try {
+        const response = await fetch(url, Object.assign({}, options || {}, {
+          signal: controller.signal
+        }));
+
+        return await response.json();
+      } finally {
+        clearTimeout(timer);
+      }
+    }
+
+    async function postJsonTextPlain(payload) {
+      return await fetchJsonWithTimeout(
+        CONFIG.WEB_APP_URL,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "text/plain"
+          },
+          body: JSON.stringify(payload)
+        },
+        CONFIG.REQUEST_TIMEOUT_MS
+      );
     }
 
     async function getStatusSistem() {
       const url = CONFIG.WEB_APP_URL + "?action=status";
-      const response = await fetch(url, {
-        method: "GET"
-      });
 
-      return await response.json();
+      return await fetchJsonWithTimeout(
+        url,
+        {
+          method: "GET"
+        },
+        CONFIG.REQUEST_TIMEOUT_MS
+      );
     }
 
     function getInformasiPerangkat() {
@@ -568,6 +640,63 @@
       return value.substring(0, 5);
     }
 
+    function renderStatusSistem(data) {
+      el.statusNamaSistem.textContent = data.namaSistem || "-";
+
+      if (data.scannerAktif === true) {
+        el.statusScanner.innerHTML = '<span class="badge badge-success">Aktif</span>';
+      } else {
+        el.statusScanner.innerHTML = '<span class="badge badge-danger">Nonaktif</span>';
+      }
+
+      el.statusJamMasuk.textContent =
+        formatJam(data.jamMasukBuka) + " - " + formatJam(data.jamMasukTutup);
+
+      el.statusJamPulang.textContent =
+        formatJam(data.jamPulangBuka) + " - " + formatJam(data.jamPulangTutup);
+
+      el.statusAntiDouble.textContent =
+        (data.antiDoubleScanDetik || 60) + " detik";
+    }
+
+    function saveStatusCache(data) {
+      try {
+        sessionStorage.setItem(CONFIG.STORAGE_STATUS_KEY, JSON.stringify({
+          savedAt: Date.now(),
+          data: data
+        }));
+      } catch (error) {
+        // Cache status tidak wajib.
+      }
+    }
+
+    function renderCachedStatusIfFresh() {
+      try {
+        const raw = sessionStorage.getItem(CONFIG.STORAGE_STATUS_KEY);
+
+        if (!raw) {
+          return false;
+        }
+
+        const cached = JSON.parse(raw);
+
+        if (
+          !cached ||
+          !cached.data ||
+          !cached.savedAt ||
+          Date.now() - cached.savedAt > CONFIG.STATUS_CACHE_MS
+        ) {
+          return false;
+        }
+
+        renderStatusSistem(cached.data);
+        showMessage(el.statusMessage, "warning", "Status sistem memakai cache sementara. Sedang memperbarui data terbaru...");
+        return true;
+      } catch (error) {
+        return false;
+      }
+    }
+
     async function loadStatusSistem() {
       clearMessage(el.statusMessage);
 
@@ -583,22 +712,9 @@
 
         const data = result.data || {};
 
-        el.statusNamaSistem.textContent = data.namaSistem || "-";
-
-        if (data.scannerAktif === true) {
-          el.statusScanner.innerHTML = '<span class="badge badge-success">Aktif</span>';
-        } else {
-          el.statusScanner.innerHTML = '<span class="badge badge-danger">Nonaktif</span>';
-        }
-
-        el.statusJamMasuk.textContent =
-          formatJam(data.jamMasukBuka) + " - " + formatJam(data.jamMasukTutup);
-
-        el.statusJamPulang.textContent =
-          formatJam(data.jamPulangBuka) + " - " + formatJam(data.jamPulangTutup);
-
-        el.statusAntiDouble.textContent =
-          (data.antiDoubleScanDetik || 60) + " detik";
+        renderStatusSistem(data);
+        saveStatusCache(data);
+        clearMessage(el.statusMessage);
 
       } catch (error) {
         el.statusNamaSistem.textContent = "-";
@@ -970,14 +1086,76 @@
       }
     }
 
+    function setScanProcessing(active, mainText, subText) {
+      if (active) {
+        el.processingPanel.classList.add("show");
+        el.processingText.textContent = mainText || "Sedang memproses scan...";
+        el.processingSubtext.textContent =
+          subText || "Mohon tunggu. Jangan scan QR lain sebelum proses selesai.";
+
+        el.startCameraButton.disabled = true;
+        el.stopCameraButton.disabled = true;
+        el.logoutButton.disabled = true;
+        el.cameraNote.textContent = "QR sudah terbaca. Scanner dikunci sementara sampai response backend diterima.";
+      } else {
+        el.processingPanel.classList.remove("show");
+        el.processingText.textContent = "Sedang memproses...";
+        el.processingSubtext.textContent = "Mohon tunggu. Jangan scan QR lain sebelum proses selesai.";
+
+        if (cameraActive) {
+          el.startCameraButton.disabled = true;
+          el.stopCameraButton.disabled = false;
+        } else {
+          el.startCameraButton.disabled = false;
+          el.stopCameraButton.disabled = true;
+        }
+
+        el.logoutButton.disabled = false;
+      }
+    }
+
+    function pauseScannerWhileProcessing() {
+      if (
+        qrScanner &&
+        cameraActive &&
+        typeof qrScanner.pause === "function"
+      ) {
+        try {
+          qrScanner.pause(true);
+        } catch (error) {
+          // Jika browser/library tidak mendukung pause, scanLocked tetap melindungi request ganda.
+        }
+      }
+    }
+
+    function resumeScannerAfterProcessing() {
+      if (
+        qrScanner &&
+        cameraActive &&
+        typeof qrScanner.resume === "function"
+      ) {
+        try {
+          qrScanner.resume();
+        } catch (error) {
+          // Jika resume gagal, operator masih bisa stop dan mulai ulang kamera.
+        }
+      }
+    }
+
     async function handleQrDetected(decodedText) {
 	  if (scanLocked) {
 		return;
 	  }
 
 	  scanLocked = true;
+      pauseScannerWhileProcessing();
 
 	  clearMessage(el.scannerMessage);
+      setScanProcessing(
+        true,
+        "QR terbaca. Mengirim data scan...",
+        "Backend sedang memvalidasi sesi, token QR, kalender kerja, dan data absensi."
+      );
 
 	  const parsed = renderQrPreviewSafe(decodedText);
 
@@ -989,6 +1167,7 @@
 		  pesan: parsed.pesan
 		});
 
+        setScanProcessing(false);
 		startFrontendCooldown();
 		return;
 	  }
@@ -1001,6 +1180,7 @@
 		clearSession();
 		showLoginPage();
 		showMessage(el.loginMessage, "warning", "Sesi habis. Silakan login ulang.");
+        setScanProcessing(false);
 		scanLocked = false;
 		return;
 	  }
@@ -1038,6 +1218,7 @@
 			"Sesi scanner tidak valid atau telah berakhir. Silakan login ulang."
 		  );
 
+          setScanProcessing(false);
 		  scanLocked = false;
 		  return;
 		}
@@ -1052,11 +1233,14 @@
 		  pesan: "Scan gagal dikirim. Periksa koneksi internet."
 		});
 	  } finally {
+        setScanProcessing(false);
 		startFrontendCooldown();
 	  }
 	}
 
     function startFrontendCooldown() {
+      clearCooldown();
+
       let sisaDetik = Math.ceil(CONFIG.FRONTEND_COOLDOWN_MS / 1000);
 
       el.cameraNote.textContent = "Cooldown frontend aktif. Tunggu " + sisaDetik + " detik sebelum scan berikutnya.";
@@ -1071,6 +1255,7 @@
           scanLocked = false;
 
           if (cameraActive) {
+            resumeScannerAfterProcessing();
             el.cameraNote.textContent = "Kamera aktif. Silakan scan QR berikutnya.";
           }
         }
@@ -1117,8 +1302,12 @@
     }
 
     async function initApp() {
-      await loadStatusSistem();
-      await validateExistingSession();
+      renderCachedStatusIfFresh();
+
+      await Promise.allSettled([
+        loadStatusSistem(),
+        validateExistingSession()
+      ]);
     }
 
     el.loginForm.addEventListener("submit", handleLogin);
