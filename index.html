@@ -178,15 +178,7 @@
     const WEB_APP_URL =
       'https://script.google.com/macros/s/AKfycby5y_Z_V_frLDlnEu-BcSRqKoHIux63-Whpo5n0X2O092kCwhDt70JPV5MBL3TgNy8wxw/exec';
 
-    const scanner = new Html5Qrcode('reader', {
-      formatsToSupport: [
-        Html5QrcodeSupportedFormats.QR_CODE
-      ],
-    
-      useBarCodeDetectorIfSupported: true,
-    
-      verbose: false
-    });
+    let scanner = null;
 
     const tombolMulai =
       document.getElementById('tombolMulai');
@@ -231,39 +223,28 @@
           'Izinkan browser menggunakan kamera.'
         );
 
+        scanner = new Html5Qrcode('reader');
+
         await scanner.start(
-          {
-            facingMode: 'environment'
-          },
-          {
-            fps: 20,
+            {
+              facingMode: 'environment'
+            },
+            {
+              fps: 10,
           
-            disableFlip: false,
-          
-            videoConstraints: {
-              facingMode: 'environment',
-          
-              width: {
-                ideal: 1280
-              },
-          
-              height: {
-                ideal: 720
-              },
-          
-              frameRate: {
-                ideal: 30
+              qrbox: {
+                width: 250,
+                height: 250
               }
+            },
+            ketikaQrTerbaca,
+            function () {
+              /*
+               * Error pencarian QR per frame
+               * tidak perlu ditampilkan.
+               */
             }
-          },
-          ketikaQrTerbaca,
-          function () {
-            /*
-             * Error pembacaan setiap frame
-             * sengaja tidak ditampilkan.
-             */
-          }
-        );
+          );
 
         kameraAktif = true;
         aturTombolKamera();
@@ -289,16 +270,20 @@
 
 
     async function hentikanKamera() {
-      if (!kameraAktif) {
+      if (!scanner || !kameraAktif) {
+        kameraAktif = false;
+        aturTombolKamera();
         return;
       }
-
+    
       try {
         await scanner.stop();
+        scanner.clear();
       } catch (error) {
         console.error(error);
       }
-
+    
+      scanner = null;
       kameraAktif = false;
       aturTombolKamera();
     }
