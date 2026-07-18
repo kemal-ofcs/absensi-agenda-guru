@@ -143,7 +143,7 @@
   <main class="container">
     <section class="judul">
       <h1>Scanner Absensi Guru</h1>
-      <p>Clean Build — Tahap 6</p>
+      <p>Clean Build — Tahap 9F</p>
     </section>
 
     <section class="card">
@@ -169,86 +169,86 @@
     </section>
 
     <p class="catatan">
-      Setiap hasil validasi QR dicatat ke LOG_SCAN.
-      Belum memperbarui ABSENSI_HARIAN.
+      QR divalidasi menggunakan ID dan token.
+      Setiap hasil scan dicatat secara aman ke LOG_SCAN.
     </p>
   </main>
 
   <script>
     const WEB_APP_URL =
       'https://script.google.com/macros/s/AKfycbxn4HNZ8z5rLjqPXfZR4rG6LZLvm3QLHwCUPHbfMeHDUDJNDNPyIPeXv5uSSKxiBL4g/exec';
-    
+  
     let scanner = null;
-
+  
     const tombolMulai =
       document.getElementById('tombolMulai');
-
+  
     const tombolBerhenti =
       document.getElementById('tombolBerhenti');
-
+  
     const kotakHasil =
       document.getElementById('kotakHasil');
-
+  
     const judulHasil =
       document.getElementById('judulHasil');
-
+  
     const detailHasil =
       document.getElementById('detailHasil');
-
+  
     let kameraAktif = false;
     let sedangMemproses = false;
-
+  
     tombolMulai.addEventListener(
       'click',
       mulaiKamera
     );
-
+  
     tombolBerhenti.addEventListener(
       'click',
       hentikanKamera
     );
-
-
+  
+  
     async function mulaiKamera() {
       if (kameraAktif) {
         return;
       }
-
+  
       try {
         sedangMemproses = false;
-
+  
         tampilkanHasil(
           'loading',
           'Membuka kamera',
           'Izinkan browser menggunakan kamera.'
         );
-
+  
         scanner = new Html5Qrcode('reader');
-
+  
         await scanner.start(
-            {
-              facingMode: 'environment'
-            },
-            {
-              fps: 10,
-          
-              qrbox: {
-                width: 250,
-                height: 250
-              }
-            },
-            ketikaQrTerbaca,
-            function () {
-              /*
-               * Error pencarian QR per frame
-               * tidak perlu ditampilkan.
-               */
+          {
+            facingMode: 'environment'
+          },
+          {
+            fps: 10,
+  
+            qrbox: {
+              width: 250,
+              height: 250
             }
-          );
-
+          },
+          ketikaQrTerbaca,
+          function () {
+            /*
+             * Error pencarian QR per frame
+             * tidak perlu ditampilkan.
+             */
+          }
+        );
+  
         kameraAktif = true;
         aturTombolKamera();
-
+  
         tampilkanHasil(
           'idle',
           'Kamera aktif',
@@ -257,138 +257,155 @@
       } catch (error) {
         kameraAktif = false;
         aturTombolKamera();
-
+  
         tampilkanHasil(
           'gagal',
           'Kamera gagal dibuka',
           'Periksa izin kamera dan pastikan website dibuka melalui HTTPS.'
         );
-
+  
         console.error(error);
       }
     }
-
-
+  
+  
     async function hentikanKamera() {
       if (!scanner || !kameraAktif) {
         kameraAktif = false;
         aturTombolKamera();
         return;
       }
-    
+  
       try {
         await scanner.stop();
         scanner.clear();
       } catch (error) {
         console.error(error);
       }
-    
+  
       scanner = null;
       kameraAktif = false;
       aturTombolKamera();
     }
-
-
+  
+  
+    /**
+     * Menerima payload QR dengan format:
+     * ID_Pegawai|Token_QR
+     */
     async function ketikaQrTerbaca(teksQr) {
       if (sedangMemproses) {
         return;
       }
-
+  
       sedangMemproses = true;
-
-      const idPegawai = String(teksQr || '')
+  
+      const isiQr = String(teksQr || '')
         .trim()
         .toUpperCase();
-
+  
       await hentikanKamera();
-
+  
       /*
-       * Tahap ini hanya menerima ID sederhana,
-       * misalnya G001.
+       * ID maksimal 30 karakter.
+       * Token harus 64 karakter heksadesimal.
        */
-      const formatValid =
-        /^[A-Z0-9_-]{1,30}$/.test(idPegawai);
-
-      if (!formatValid) {
+      const hasilFormat = isiQr.match(
+        /^([A-Z0-9_-]{1,30})\|([A-F0-9]{64})$/
+      );
+  
+      if (!hasilFormat) {
         tampilkanHasil(
           'gagal',
           'Format QR tidak valid',
-          'Isi QR harus berupa ID Pegawai sederhana.'
+          'QR harus berasal dari MASTER_QR versi token.'
         );
-
+  
         return;
       }
-
+  
+      /*
+       * Hanya ID yang boleh ditampilkan.
+       * Token tidak ditampilkan pada halaman.
+       */
+      const idPegawai = hasilFormat[1];
+  
       tampilkanHasil(
         'loading',
-        'Memeriksa ID',
+        'Memvalidasi QR',
         'ID hasil scan: ' + idPegawai
       );
-
-      kirimKeApi(idPegawai);
+  
+      kirimKeApi(isiQr);
     }
-
-
-    function kirimKeApi(idPegawai) {
-      /*
-       * Callback unik diperlukan agar website
-       * eksternal dapat membaca respons Apps Script.
-       */
+  
+  
+    /**
+     * Mengirim payload lengkap ke backend.
+     *
+     * Payload tidak ditampilkan kepada pengguna.
+     */
+    function kirimKeApi(isiQr) {
       const callbackName =
         'callbackScan_' + Date.now();
-
+  
       const elemenScript =
         document.createElement('script');
-
+  
       let batasWaktu;
-
+  
       function hapusPermintaan() {
         clearTimeout(batasWaktu);
         elemenScript.remove();
         delete window[callbackName];
       }
-
+  
       window[callbackName] = function (hasil) {
         hapusPermintaan();
         tampilkanResponsApi(hasil);
       };
-
+  
       elemenScript.onerror = function () {
         hapusPermintaan();
-
+  
         tampilkanHasil(
           'gagal',
           'API tidak dapat dihubungi',
           'Periksa URL Web App dan koneksi internet.'
         );
       };
-
+  
       batasWaktu = setTimeout(function () {
         hapusPermintaan();
-
+  
         tampilkanHasil(
           'gagal',
           'Waktu tunggu habis',
           'Apps Script tidak memberikan respons dalam 15 detik.'
         );
       }, 15000);
-
+  
       const parameter =
-        '?aksi=cariPegawai' +
-        '&idPegawai=' +
-        encodeURIComponent(idPegawai) +
+        '?aksi=scanQrToken' +
+        '&isiQr=' +
+        encodeURIComponent(isiQr) +
         '&callback=' +
         encodeURIComponent(callbackName) +
         '&waktu=' +
         Date.now();
-
+  
       elemenScript.src =
         WEB_APP_URL + parameter;
-
-      document.body.appendChild(elemenScript);
+  
+      document.body.appendChild(
+        elemenScript
+      );
     }
-
-
+  
+  
+    /**
+     * Menampilkan hasil backend tanpa token.
+     */
     function tampilkanResponsApi(hasil) {
       if (!hasil || typeof hasil !== 'object') {
         tampilkanHasil(
@@ -396,48 +413,102 @@
           'Respons tidak valid',
           'API memberikan respons yang tidak dikenali.'
         );
-
+  
         return;
       }
-
+  
+      const data = hasil.data || {};
+  
       if (hasil.berhasil) {
-        const pegawai = hasil.data;
-
-        tampilkanHasil(
-          'sukses',
-          'QR berhasil diverifikasi',
-          'ID: ' + pegawai.idPegawai +
-          '\nNama: ' + pegawai.namaLengkap +
-          '\nJabatan: ' + pegawai.jabatan +
-          '\nStatus: ' + pegawai.statusPegawai
-        );
-
-        return;
-      }
-
-      let detail =
-        hasil.pesan || 'Scan ditolak.';
-
-      if (hasil.data) {
+        let detail =
+          hasil.pesan || 'Scan berhasil.';
+  
         detail +=
           '\nID: ' +
-          (hasil.data.idPegawai || '-') +
-
+          (data.idPegawai || '-');
+  
+        detail +=
           '\nNama: ' +
-          (hasil.data.namaLengkap || '-') +
-
-          '\nStatus: ' +
-          (hasil.data.statusPegawai || '-');
+          (data.namaLengkap || '-');
+  
+        detail +=
+          '\nJabatan: ' +
+          (data.jabatan || '-');
+  
+        if (hasil.jenisScan) {
+          detail +=
+            '\nJenis scan: ' +
+            hasil.jenisScan;
+        }
+  
+        if (data.jamMasuk) {
+          detail +=
+            '\nJam masuk: ' +
+            data.jamMasuk;
+        }
+  
+        if (data.jamPulang) {
+          detail +=
+            '\nJam pulang: ' +
+            data.jamPulang;
+        }
+  
+        if (data.statusAbsensi) {
+          detail +=
+            '\nStatus: ' +
+            data.statusAbsensi;
+        }
+  
+        tampilkanHasil(
+          'sukses',
+          hasil.kode || 'Scan berhasil',
+          detail
+        );
+  
+        return;
       }
-
+  
+      let detail =
+        hasil.pesan || 'Scan ditolak.';
+  
+      if (data.idPegawai) {
+        detail +=
+          '\nID: ' +
+          data.idPegawai;
+      }
+  
+      if (data.namaLengkap) {
+        detail +=
+          '\nNama: ' +
+          data.namaLengkap;
+      }
+  
+      if (data.statusPegawai) {
+        detail +=
+          '\nStatus pegawai: ' +
+          data.statusPegawai;
+      }
+  
+      if (data.jamServer) {
+        detail +=
+          '\nJam server: ' +
+          data.jamServer;
+      }
+  
+      if (data.statusWaktu) {
+        detail +=
+          '\nStatus waktu: ' +
+          data.statusWaktu;
+      }
+  
       tampilkanHasil(
         'gagal',
         hasil.kode || 'Scan ditolak',
         detail
       );
     }
-
-
+  
+  
     function tampilkanHasil(
       tipe,
       judul,
@@ -445,19 +516,19 @@
     ) {
       kotakHasil.className =
         'card hasil ' + tipe;
-
+  
       judulHasil.textContent = judul;
       detailHasil.textContent = detail;
     }
-
-
+  
+  
     function aturTombolKamera() {
       tombolMulai.disabled =
         kameraAktif;
-
+  
       tombolBerhenti.disabled =
         !kameraAktif;
-
+  
       tombolMulai.textContent =
         kameraAktif
           ? 'Kamera Aktif'
